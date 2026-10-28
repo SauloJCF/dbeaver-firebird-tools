@@ -1,8 +1,11 @@
-# Firebird PSQL Debugger — Contexto
+# Firebird Tools para DBeaver — Contexto
 
-Plugin do DBeaver CE (`dev.fbdebug.dbeaver`) para depurar código PSQL do Firebird 5 contra um banco local de desenvolvimento. Ferramenta pessoal que substitui o uso do debugger do IBExpert.
+Conjunto de plugins do DBeaver CE para Firebird 5 (ADR 0006), ferramenta pessoal que substitui recursos do IBExpert:
 
-## Glossário
+- **Depurador PSQL** (`dev.fbtools.dbeaver.psqldebug`): depura código PSQL contra um banco local de desenvolvimento.
+- **Exportação** (`dev.fbtools.dbeaver.export`): gera scripts de metadata e de dados do banco.
+
+## Depurador PSQL
 
 **Rotina**
 Unidade de PSQL que pode ser depurada: procedure executável, procedure selecionável, `EXECUTE BLOCK`, function, rotina de package ou trigger de tabela.
@@ -52,3 +55,35 @@ O texto da Rotina gravado nos metadados (`RDB$PROCEDURE_SOURCE` etc.). É sempre
 
 **Teste diferencial**
 Teste que executa a mesma Rotina no servidor (execução nativa) e no Interpretador, cada uma em transação própria com rollback, e compara saídas, linhas de `SUSPEND`, exceção e estado das tabelas.
+
+## Exportação de metadata e dados
+
+**Extração**
+Uma execução da exportação, do clique em "Extrair" até o arquivo pronto, cancelada ou com erro. Roda em job de background, com progresso e cancelamento.
+
+**Script de metadata**
+Arquivo `.sql` com o DDL dos objetos escolhidos, em Fases. Feito para o `isql` e o DBeaver (`SET TERM` por padrão); nunca contém senha.
+
+**Script de dados**
+Arquivo `.sql` com `INSERT`s das tabelas escolhidas, em ordem de FK, com `COMMIT WORK` a cada N registros. Lido em streaming.
+
+**Fase**
+Bloco do Script de metadata que reúne um tipo de objeto (domínios, generators, tabelas, views, cabeçalhos de rotinas, índices e FKs, corpos, triggers, descrições, grants…). A ordem das Fases e a ordem topológica dentro delas vêm de `RDB$DEPENDENCIES` (ADR 0007).
+
+**Cabeçalho vazio**
+`CREATE PROCEDURE/FUNCTION/PACKAGE` só com a assinatura e corpo vazio, emitido numa Fase anterior à dos corpos. Resolve chamadas cíclicas entre rotinas.
+
+**Objetos relacionados**
+Objetos de que um objeto selecionado depende (domínios, generators, exceptions, rotinas). "Add related objects" os inclui na seleção para o script rodar sem faltar nada.
+
+**Charset do script**
+Codificação do arquivo e `SET NAMES` do script. Por padrão, o charset padrão do banco (ADR 0009).
+
+**Referência do IBExpert**
+Saída do IBExpert para o banco de teste sintético, gerada à mão e versionada em `golden/`. Oráculo só para o subconjunto comum ao Firebird 2.5 e ao 5 (ADR 0008).
+
+**Diferença aceita**
+Divergência deliberada entre a saída do plugin e a Referência do IBExpert (ex.: `COMMENT ON` no lugar de `UPDATE … DESCRIBE`), registrada em `allowed-diffs`.
+
+**Ida e volta**
+Teste que extrai o metadata de um banco, roda o script num banco vazio, extrai de novo e compara os dois scripts (e o conteúdo das tabelas, para dados).
