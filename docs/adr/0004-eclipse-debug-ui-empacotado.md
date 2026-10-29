@@ -2,6 +2,8 @@
 
 Status: aceito — 2026-10-13 · revisado 2026-10-14 (forma de instalação: `dropins` → repositório p2) · revisado 2026-10-19 (DBeaver 26.2.2, `debug.ui` 3.22.0)
 
+> Nota: renomeado na ADR 0006. O plugin passou de `dev.fbdebug.dbeaver` para `dev.fbtools.dbeaver.psqldebug` e o zip, de `firebird-psql-debugger-<versão>.zip` para `firebird-tools-<versão>.zip`. A decisão abaixo não muda.
+
 ## Contexto
 
 O DBeaver CE 26.2.2 traz `org.eclipse.debug.core`, mas não `org.eclipse.debug.ui` nem o antigo framework `org.jkiss.dbeaver.debug.*`. As dependências do `debug.ui` (`ui.console`, `ui.ide`, `ui.editors`, `jface.text`, `core.variables`) estão presentes.

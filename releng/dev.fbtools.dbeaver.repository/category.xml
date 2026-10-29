@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+    <!-- Sem categoria, o "Install New Software" do DBeaver não lista nada com "Group items by category" marcado. -->
+    <feature id="dev.fbtools.dbeaver.psqldebug.feature">
+        <category name="fbtools"/>
+    </feature>
+    <category-def name="fbtools" label="Firebird Tools"/>
+</site>

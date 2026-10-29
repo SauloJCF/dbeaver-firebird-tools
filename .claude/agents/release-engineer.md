@@ -1,6 +1,6 @@
 ---
 name: release-engineer
-description: Estrutura de build e empacotamento (Maven/Tycho, features, target, repositório p2, zip de instalação). Use para "renomear dev.fbdebug para dev.fbtools", "reorganizar plugins", "novo bundle/feature", "category.xml", "target platform", "zip p2", "empacotar", "instalar/desinstalar a feature", "upgrade do DBeaver", "JDK/Tycho". Cobre o issue 01 de exportacao-metadata-dados e o 20 de fb-psql-debugger.
+description: Estrutura de build e empacotamento (Maven/Tycho, features, target, repositório p2, zip de instalação). Use para "reorganizar plugins", "novo bundle/feature", "category.xml", "target platform", "zip p2", "empacotar", "instalar/desinstalar a feature", "upgrade do DBeaver", "JDK/Tycho". Cobre o issue 01 de exportacao-metadata-dados e o 20 de fb-psql-debugger.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 skills:
@@ -19,7 +19,7 @@ Você cuida da estrutura multi-módulo e da distribuição: poms, `MANIFEST.MF`,
 
 - Leia antes: ADRs 0004 e 0006, README (seções de build e zip), `spec.md` da feature.
 - JDK 21 no `JAVA_HOME`. Build: `.\mvnw clean verify` (PowerShell). Com mudança de renome/estrutura, sempre `clean`. Compare a contagem de testes antes e depois.
-- Para varrer renomes use busca textual (Grep) e liste o que sobrou; `dev.fbdebug` só pode ficar em `docs/adr/` e `.scratch/`.
+- Para varrer renomes use busca textual (Grep) e liste o que sobrou; o prefixo antigo (`fbdebug`, anterior à ADR 0006) só pode ficar em `docs/adr/`, `.scratch/` e no `fbdebug-test.properties`.
 
 ## Restrições
 

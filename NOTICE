@@ -1,4 +1,4 @@
-Firebird PSQL Debugger
+Firebird Tools
 Copyright (c) 2026 Saulo Figueiredo
 Licenciado sob a MIT License (ver LICENSE).
 
@@ -15,7 +15,7 @@ licenças originais:
   Copyright (c) 2012-2022 The ANTLR Project. Todos os direitos reservados.
   BSD 3-Clause License: https://github.com/antlr/antlr4/blob/master/LICENSE.txt
 
-- src/dev/fbdebug/dbeaver/interp/gds-codes.txt: tabela de códigos de erro
+- src/dev/fbtools/dbeaver/psqldebug/interp/gds-codes.txt: tabela de códigos de erro
   gerada a partir dos cabeçalhos de mensagens do Firebird 5.0
   (include/firebird/impl/msg). Firebird Project, https://firebirdsql.org/
   Licenças: https://firebirdsql.org/en/licensing/

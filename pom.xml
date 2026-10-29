@@ -4,12 +4,12 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>dev.fbdebug.dbeaver</groupId>
-    <artifactId>fbdebug-parent</artifactId>
+    <groupId>dev.fbtools.dbeaver</groupId>
+    <artifactId>fbtools-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>Firebird PSQL Debugger (parent)</name>
+    <name>Firebird Tools (parent)</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -22,10 +22,10 @@
     </properties>
 
     <modules>
-        <module>releng/dev.fbdebug.dbeaver.target</module>
-        <module>bundles/dev.fbdebug.dbeaver</module>
-        <module>features/dev.fbdebug.dbeaver.feature</module>
-        <module>releng/dev.fbdebug.dbeaver.repository</module>
+        <module>releng/dev.fbtools.dbeaver.target</module>
+        <module>bundles/dev.fbtools.dbeaver.psqldebug</module>
+        <module>features/dev.fbtools.dbeaver.psqldebug.feature</module>
+        <module>releng/dev.fbtools.dbeaver.repository</module>
     </modules>
 
     <build>
@@ -41,11 +41,11 @@
                 <artifactId>target-platform-configuration</artifactId>
                 <version>${tycho.version}</version>
                 <configuration>
-                    <!-- Mesma definição que a IDE usa: releng/dev.fbdebug.dbeaver.target -->
+                    <!-- Mesma definição que a IDE usa: releng/dev.fbtools.dbeaver.target -->
                     <target>
                         <artifact>
-                            <groupId>dev.fbdebug.dbeaver</groupId>
-                            <artifactId>dev.fbdebug.dbeaver.target</artifactId>
+                            <groupId>dev.fbtools.dbeaver</groupId>
+                            <artifactId>dev.fbtools.dbeaver.target</artifactId>
                             <version>0.1.0-SNAPSHOT</version>
                         </artifact>
                     </target>

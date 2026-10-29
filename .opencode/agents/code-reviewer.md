@@ -21,7 +21,7 @@ Você revisa mudanças (working tree, branch ou commit informado) em duas frente
 
 1. **Spec**: o diff entrega o que o issue (`.scratch/<feature>/issues/NN-*.md`) pede em "O que construir", sem invadir outro issue? Os `[x]` marcados têm evidência?
 2. **Padrões**: usa os termos do `GLOSSARY.md`? Contradiz alguma ADR em `docs/adr/` (0005: Teste diferencial; 0007: ler `RDB$` direto; 0008: Referência do IBExpert e Ida e volta; 0009: charset)? Segue o estilo do módulo?
-3. **Riscos do domínio**: senha em arquivo gerado; expressão avaliada no cliente; interior de Fatia DML interpretado; breakpoint persistido; DDL esperado escrito à mão; tabela inteira em memória; `dev.fbdebug` esquecido após o renome; `Status:` alterado.
+3. **Riscos do domínio**: senha em arquivo gerado; expressão avaliada no cliente; interior de Fatia DML interpretado; breakpoint persistido; DDL esperado escrito à mão; tabela inteira em memória; prefixo antigo (`fbdebug`) esquecido após o renome; `Status:` alterado.
 4. **Testes**: foram rodados? Teste que "passa" com `-DskipTests` não conta.
 
 ## Como trabalhar
