@@ -67,6 +67,10 @@ Arquivo `.sql` com o DDL dos objetos escolhidos, em Fases. Feito para o `isql` e
 **Script de dados**
 Arquivo `.sql` com `INSERT`s das tabelas escolhidas, em ordem de FK, com `COMMIT WORK` a cada N registros. Lido em streaming.
 
+**Coluna array**
+Coluna cujo tipo tem dimensões, declaradas na própria coluna ou no domínio que ela usa (ex.: `INTEGER [1:5]`). Ver ADR 0010.
+_Evitar_: "vetor", "campo array".
+
 **Fase**
 Bloco do Script de metadata que reúne um tipo de objeto (domínios, generators, tabelas, views, cabeçalhos de rotinas, índices e FKs, corpos, triggers, descrições, grants…). A ordem das Fases e a ordem topológica dentro delas vêm de `RDB$DEPENDENCIES` (ADR 0007).
 
@@ -79,8 +83,12 @@ Objetos de que um objeto selecionado depende (domínios, generators, exceptions,
 **Charset do script**
 Codificação do arquivo e `SET NAMES` do script. Por padrão, o charset padrão do banco (ADR 0009).
 
+**Banco sintético**
+Banco Firebird criado do zero por um script versionado, só para os testes da Exportação, nunca copiado de banco de cliente. É a entrada da Referência do IBExpert e da Ida e volta.
+_Evitar_: "banco de exemplo" (é o do depurador), "banco de teste".
+
 **Referência do IBExpert**
-Saída do IBExpert para o banco de teste sintético, gerada à mão e versionada em `golden/`. Oráculo só para o subconjunto comum ao Firebird 2.5 e ao 5 (ADR 0008).
+Saída do IBExpert para o Banco sintético, gerada à mão e versionada em `golden/`. Oráculo só para o subconjunto comum ao Firebird 2.5 e ao 5 (ADR 0008).
 
 **Diferença aceita**
 Divergência deliberada entre a saída do plugin e a Referência do IBExpert (ex.: `COMMENT ON` no lugar de `UPDATE … DESCRIBE`), registrada em `allowed-diffs`.

@@ -49,6 +49,7 @@ Extrair do DBeaver CE, para um arquivo `.sql`, o metadata de um banco Firebird 5
 - `REINSERT`, "Exclude IBE$/TMP$", `UPDATE … DESCRIBE`, `COMMENT` opcional (a saída é sempre `COMMENT ON`).
 - Formatos CSV/JSON (ficam com o Data Transfer nativo do DBeaver).
 - Servidores que não sejam Firebird 5 (pode funcionar com outras versões, sem garantia).
+- Valores de Colunas array no Script de dados (decisão adiada, ver ADR 0010).
 
 ## Testes
 
