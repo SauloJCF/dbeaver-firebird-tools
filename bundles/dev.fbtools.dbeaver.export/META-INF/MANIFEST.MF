@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Firebird Metadata Export
+Bundle-Vendor: Saulo Figueiredo
+Bundle-SymbolicName: dev.fbtools.dbeaver.export;singleton:=true
+Bundle-Version: 0.1.0.qualifier
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Bundle-ActivationPolicy: lazy
+Automatic-Module-Name: dev.fbtools.dbeaver.export
+Require-Bundle: org.eclipse.core.runtime
