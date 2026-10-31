@@ -24,7 +24,9 @@
     <modules>
         <module>releng/dev.fbtools.dbeaver.target</module>
         <module>bundles/dev.fbtools.dbeaver.psqldebug</module>
+        <module>bundles/dev.fbtools.dbeaver.export</module>
         <module>features/dev.fbtools.dbeaver.psqldebug.feature</module>
+        <module>features/dev.fbtools.dbeaver.export.feature</module>
         <module>releng/dev.fbtools.dbeaver.repository</module>
     </modules>
 
