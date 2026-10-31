@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+    <extension point="org.eclipse.ui.commands">
+        <command
+                id="dev.fbtools.dbeaver.export.extractMetadata"
+                name="Extract Metadata..."
+                description="Extrai o metadata da conexão Firebird para um script SQL"/>
+    </extension>
+
+    <!-- O handler confere se há conexão Firebird no contexto (navegador ou editor ativo). -->
+    <extension point="org.eclipse.ui.handlers">
+        <handler
+                commandId="dev.fbtools.dbeaver.export.extractMetadata"
+                class="dev.fbtools.dbeaver.export.ui.ExtractMetadataHandler"/>
+    </extension>
+
+    <extension point="org.eclipse.ui.menus">
+        <menuContribution locationURI="menu:org.eclipse.ui.main.menu?after=additions">
+            <menu id="dev.fbtools.dbeaver.export.menu" label="Firebird Tools">
+                <command commandId="dev.fbtools.dbeaver.export.extractMetadata"/>
+            </menu>
+        </menuContribution>
+        <!-- Menu de contexto da conexão no navegador: só aparece com uma conexão Firebird selecionada. -->
+        <menuContribution allPopups="false" locationURI="popup:org.eclipse.ui.popup.any?after=tools">
+            <command commandId="dev.fbtools.dbeaver.export.extractMetadata">
+                <visibleWhen checkEnabled="true"/>
+            </command>
+        </menuContribution>
+    </extension>
+
+</plugin>

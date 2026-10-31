@@ -1,0 +1,5 @@
+# Diferenças aceitas entre a saída do plugin e a Referência do IBExpert (ADR 0008).
+# Formato: TIPO NOME | motivo. Cada entrada vale para o objeto inteiro; remova as que deixarem de ser usadas.
+
+DESCRIPTION DOMAIN D_DINHEIRO | A saída é sempre COMMENT ON; o IBExpert gera DESCRIBE (fora do escopo: UPDATE ... DESCRIBE, ver spec).
+DESCRIPTION GENERATOR GEN_PEDIDO | A saída é sempre COMMENT ON; o IBExpert gera DESCRIBE.
