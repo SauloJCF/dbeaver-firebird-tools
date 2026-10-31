@@ -51,6 +51,10 @@ O `verify` roda os testes JUnit do plugin, e os Testes diferenciais (ADR 0005) p
 
 Para gerar o build sem um Firebird disponível: `.\mvnw verify -DskipTests`.
 
+### `DataTypeCompatibility` do servidor
+
+Com `DataTypeCompatibility = 2.5` no `firebird.conf`, o servidor devolve `BOOLEAN` como `CHAR(5)`, `DECFLOAT` como `DOUBLE PRECISION` e `INT128` e os tipos com fuso horário como tipos mais antigos. O depurador não depende dessa configuração: ao abrir a Sessão de debug ele executa `SET BIND OF BOOLEAN | DECFLOAT | INT128 | TIME ZONE TO NATIVE` na conexão dedicada dela (`NativeTypes`), sem alterar as outras conexões do DBeaver. Se o `SET BIND` falhar, o launch é abortado com a mensagem do servidor. A conexão dos testes faz o mesmo.
+
 ### IDE: Eclipse IDE for RCP and RAP Developers
 
 1. Instale o pacote "Eclipse IDE for RCP and RAP Developers", 2026-09 ou mais novo.

@@ -56,6 +56,7 @@ No mesmo arquivo do issue:
 - Marque `- [x]` só nos critérios realmente verificados. Os que dependem de ação humana ou de teste que não rodou ficam `- [ ]`.
 - Acrescente em `## Comments` uma entrada curta com: o que foi feito, o comando de teste e o resultado, decisões tomadas e pendências (inclusive a Dependência humana).
 - **Não crie** `Status:` novo. O repo usa só os cinco papéis de `docs/agents/triage-labels.md`, e "feito" é indicado pelos checkboxes. Só mude o `Status:` se o usuário pedir.
+- **Teste manual (só dá para ver no DBeaver):** se um critério depende de olhar o resultado no DBeaver, gere os objetos que o exercitam e acrescente-os a `samples/sample-db/create-sample-db.sql` (procedure, function, trigger, exception, tabela, dados). Insira antes de `SET TERM ; ^`, nas seções que já existem, com um comentário curto dizendo o issue e o que conferir. Mantenha o script rodando de ponta a ponta no `isql`, sem apagar nem alterar objetos existentes. O critério continua `- [ ]`, e o `## Comments` diz qual objeto usar, com quais parâmetros e o resultado esperado.
 - Se o issue mudar algo que o README ou o glossário descrevem, atualize esses arquivos.
 - **Não faça commit** a menos que o usuário peça.
 

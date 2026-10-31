@@ -13,6 +13,7 @@ CREATE SEQUENCE GEN_LOG_ESTOQUE;
 
 CREATE EXCEPTION E_ESTOQUE_INSUFICIENTE 'Estoque insuficiente para o produto';
 CREATE EXCEPTION E_PEDIDO_FECHADO 'Pedido ja esta fechado';
+CREATE EXCEPTION E_COM_BOOLEAN 'Ativo: @1';
 
 /* ---------- Tabelas ---------- */
 CREATE TABLE CLIENTE (
@@ -323,6 +324,32 @@ BEGIN
   INSERT INTO HISTORICO_PEDIDO (ID_PEDIDO, TOTAL, DESCONTO)
     SELECT :P_ID_PEDIDO, :TOTAL, FN_DESCONTO(:TOTAL) FROM RDB$DATABASE;
   SELECT COUNT(*) FROM HISTORICO_PEDIDO WHERE ID_PEDIDO = :P_ID_PEDIDO INTO :HISTORICOS;
+END^
+
+/* issue 24 (teste manual): tipos nativos com DataTypeCompatibility = 2.5 no servidor. Depure com P_ATIVO = TRUE:
+   V_ATIVO deve aparecer como TRUE (sem espaco no fim), R_VALOR como 1000 (sem .0), o IF e a condicao do FOR SELECT
+   nao podem dar "invalid usage of boolean expression", e com P_LANCA = TRUE a mensagem deve ser "Ativo: TRUE". */
+CREATE PROCEDURE SP_TIPOS_NATIVOS (P_ATIVO BOOLEAN, P_LANCA BOOLEAN)
+  RETURNS (R_ATIVO BOOLEAN, R_VALOR DECFLOAT(16), R_MSG VARCHAR(40)) AS
+  DECLARE V_ATIVO BOOLEAN;
+  DECLARE V_COLUNA BOOLEAN;
+BEGIN
+  V_ATIVO = P_ATIVO;
+  R_ATIVO = V_ATIVO;
+  R_VALOR = 1000;
+  IF (V_ATIVO) THEN
+    R_MSG = 'ativo';
+  ELSE
+    R_MSG = 'inativo';
+  FOR SELECT TRUE FROM RDB$DATABASE INTO :V_COLUNA
+  DO
+  BEGIN
+    IF (V_COLUNA) THEN
+      R_MSG = R_MSG || ' / coluna ativa';
+  END
+  SUSPEND;
+  IF (P_LANCA) THEN
+    EXCEPTION E_COM_BOOLEAN USING (V_ATIVO);
 END^
 
 /* ---------- Package ---------- */

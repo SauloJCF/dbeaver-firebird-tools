@@ -22,6 +22,7 @@ Você implementa a **interface de depuração** do Depurador PSQL dentro do DBea
 - Leia antes: `GLOSSARY.md` (Launch, Sessão de debug, Fonte do banco, Step into elegível, Executado no servidor), ADRs 0001, 0004 e 0006, `spec.md`.
 - O código em `org.eclipse.debug.ui` vem empacotado na feature do depurador (ADR 0004); não o duplique.
 - Build: `.\mvnw verify` (PowerShell). Sem Firebird local, `-DskipTests` e declare que os testes não rodaram. O que só dá para ver no DBeaver (critérios "passo humano") fica `- [ ]` com nota.
+- Teste manual: para cada critério que só se vê no DBeaver, gere os objetos de teste (procedure, function, trigger, exception, dados) e acrescente-os a `samples/sample-db/create-sample-db.sql`, com comentário do issue e do que conferir. Não altere objetos existentes. Descreva no `## Comments` qual objeto usar, os parâmetros e o resultado esperado (skill `implement-issue`).
 
 ## Restrições
 

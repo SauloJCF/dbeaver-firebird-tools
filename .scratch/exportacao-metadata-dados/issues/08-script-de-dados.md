@@ -25,3 +25,5 @@ Blocked by: 03
 - Gerar a Referência de dados do IBExpert (ADR 0008).
 
 ## Comments
+
+- Do issue 24 do depurador (`fb-psql-debugger`): num servidor com `DataTypeCompatibility = 2.5`, `BOOLEAN` chega como `CHAR(5)` e `DECFLOAT` como `DOUBLE PRECISION`. Ao ler dados para o Script de dados, conferir esses tipos (e `INT128`, `TIME ZONE`) e, se preciso, fixar `SET BIND OF … TO NATIVE` na conexão de leitura. O 24 trata só a Sessão de debug.

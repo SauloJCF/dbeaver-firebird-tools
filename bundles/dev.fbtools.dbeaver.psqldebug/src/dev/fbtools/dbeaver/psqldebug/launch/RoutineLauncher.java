@@ -55,6 +55,7 @@ import dev.fbtools.dbeaver.psqldebug.editor.EditorBreakpoints;
 import dev.fbtools.dbeaver.psqldebug.editor.RoutineEditors;
 import dev.fbtools.dbeaver.psqldebug.editor.SqlEditors;
 import dev.fbtools.dbeaver.psqldebug.interp.DebugSession;
+import dev.fbtools.dbeaver.psqldebug.interp.NativeTypes;
 import dev.fbtools.dbeaver.psqldebug.psql.PreCheck;
 import dev.fbtools.dbeaver.psqldebug.psql.PsqlSyntaxException;
 import dev.fbtools.dbeaver.psqldebug.psql.RoutineParser;
@@ -460,6 +461,7 @@ final class RoutineLauncher {
             throws SQLException {
         Connection connection = ((JDBCExecutionContext) context).getConnection(monitor);
         connection.setAutoCommit(true); // a sessão escolhe o isolamento antes da primeira transação
+        NativeTypes.bind(connection); // se falhar, o launch é abortado: tipos errados dariam resultados errados
         return connection;
     }
 

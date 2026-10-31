@@ -12,6 +12,8 @@ import java.util.Properties;
 
 import org.firebirdsql.management.FBManager;
 
+import dev.fbtools.dbeaver.psqldebug.interp.NativeTypes;
+
 /**
  * Banco Firebird 5 dedicado aos testes, recriado uma vez por execução da suíte. Host, banco e credenciais vêm de
  * {@code fbdebug-test.properties} na raiz do repositório (modelo em {@code fbdebug-test.properties.example}).
@@ -47,14 +49,24 @@ public final class TestDatabase {
         return instance;
     }
 
+    /** Conexão com os tipos nativos, como a da Sessão de debug ({@link NativeTypes}). */
     public Connection connect() throws SQLException {
+        Connection connection = connectAsIs();
+        try {
+            NativeTypes.bind(connection);
+        } catch (SQLException | RuntimeException e) {
+            connection.close();
+            throw e;
+        }
+        return connection;
+    }
+
+    /** Conexão sem nenhum ajuste: os tipos que o servidor devolve conforme o {@code DataTypeCompatibility} dele. */
+    public Connection connectAsIs() throws SQLException {
         Properties properties = new Properties();
         properties.setProperty("user", user);
         properties.setProperty("password", password);
         properties.setProperty("encoding", "UTF8");
-        // Um servidor com DataTypeCompatibility antigo devolve BOOLEAN como CHAR(5) e DECFLOAT como DOUBLE.
-        properties.setProperty("dataTypeBind",
-                "boolean to native;decfloat to native;int128 to native;time zone to native");
         return DriverManager.getConnection("jdbc:firebird://" + host + ":" + port + "/" + database, properties);
     }
 

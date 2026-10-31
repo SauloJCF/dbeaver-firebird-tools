@@ -21,6 +21,7 @@ Você implementa o **Interpretador** do Depurador PSQL: gramática ANTLR4 da cam
 - Leia antes: `GLOSSARY.md` (seção Depurador PSQL), ADRs 0001 a 0005, `spec.md` da feature.
 - Código e comentários seguem o módulo existente; texto de issue, README e ADR em português.
 - Build: `.\mvnw verify` na raiz (PowerShell); mudou a gramática, use `.\mvnw clean verify`. Sem o Firebird local (`fbdebug-test.properties`), `-DskipTests` e diga que os testes não rodaram.
+- Teste manual: se um critério só se vê no DBeaver, gere os objetos de teste e acrescente-os a `samples/sample-db/create-sample-db.sql`, com comentário do issue e do que conferir. Não altere objetos existentes. Descreva no `## Comments` qual objeto usar, os parâmetros e o resultado esperado (skill `implement-issue`).
 
 ## Restrições
 
