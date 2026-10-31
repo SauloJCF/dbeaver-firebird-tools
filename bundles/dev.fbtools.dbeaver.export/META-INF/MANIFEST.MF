@@ -7,4 +7,13 @@ Bundle-Version: 0.1.0.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Bundle-ActivationPolicy: lazy
 Automatic-Module-Name: dev.fbtools.dbeaver.export
-Require-Bundle: org.eclipse.core.runtime
+Require-Bundle: org.eclipse.core.runtime,
+ org.eclipse.core.expressions,
+ org.eclipse.jface,
+ org.eclipse.ui,
+ org.jkiss.dbeaver.model,
+ org.jkiss.dbeaver.model.jdbc,
+ org.jkiss.dbeaver.ui,
+ org.jkiss.dbeaver.ui.editors.base,
+ org.jkiss.dbeaver.ui.editors.sql,
+ org.jkiss.dbeaver.ui.navigator
