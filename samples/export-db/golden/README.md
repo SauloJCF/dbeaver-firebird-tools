@@ -4,4 +4,5 @@
 
 - O IBExpert gravou o arquivo em Windows-1252 apesar do `SET NAMES UTF8`; ele foi convertido para UTF-8 (só a codificação, nenhum texto foi alterado).
 - Contém também os `INSERT`s das tabelas (menos as colunas BLOB e o array), que a comparação de metadata ignora.
+- A coluna `TIPOS_VARIOS.C_VETOR` (array) foi removida do banco sintético em 2026-10-31 (ADR 0010) e **retirada à mão** deste arquivo, sem regenerar no IBExpert. Regenerar quando possível.
 - Regenerar sempre que `create-export-db.sql` mudar em metadata. Mudar só os dados não exige.

@@ -24,3 +24,5 @@ Blocked by: 02
 - Gerar a nova Referência do IBExpert (ADR 0008).
 
 ## Comments
+
+- 2026-10-31 (ADR 0010, proposta): a Coluna array (dimensões declaradas na coluna ou no domínio, `RDB$FIELD_DIMENSIONS`) tem de sair com as dimensões no Script de metadata (ex.: `INTEGER [1:5]`), ou no mínimo avisar. Nunca emitir como escalar: num banco real isso recria a coluna com tipo errado, em silêncio. A `C_VETOR` saiu do Banco sintético em 2026-10-31, então esse caminho está sem teste (comparação com a Referência do IBExpert e ida e volta) até a ADR 0010 ser aceita e a tabela de arrays voltar. A `C_VETOR` foi retirada à mão da Referência do IBExpert (sem regenerar no IBExpert, ver `golden/README.md`); regenerar quando possível (ADR 0010, Consequências). Não resolver com `allowed-diffs`. Nenhum critério marcado nesta atualização.
