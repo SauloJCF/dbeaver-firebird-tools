@@ -12,3 +12,4 @@ fbdebug-test.properties
 
 # banco de teste gerado
 samples/sample-db/*.FDB
+samples/export-db/*.FDB
