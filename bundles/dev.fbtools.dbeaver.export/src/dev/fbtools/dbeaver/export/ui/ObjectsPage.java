@@ -25,12 +25,13 @@ final class ObjectsPage extends WizardPage {
     private static final String DOMAINS = "Domains";
     private static final String GENERATORS = "Generators";
     private static final String TABLES = "Tables";
+    private static final String VIEWS = "Views";
     private static final String INDEXES = "Indexes";
 
     /** Grupo da árvore -> prefixo do objeto na lista dos selecionados, na ordem das Fases. */
     private static final Map<String, String> LABELS = Map.of(DOMAINS, "Domain ", GENERATORS, "Generator ",
-            TABLES, "Table ", INDEXES, "Index ");
-    private static final List<String> GROUPS = List.of(DOMAINS, GENERATORS, TABLES, INDEXES);
+            TABLES, "Table ", VIEWS, "View ", INDEXES, "Index ");
+    private static final List<String> GROUPS = List.of(DOMAINS, GENERATORS, TABLES, VIEWS, INDEXES);
 
     private final Map<String, List<String>> available = new LinkedHashMap<>();
     private final Map<String, Set<String>> chosen = new LinkedHashMap<>();
@@ -41,14 +42,17 @@ final class ObjectsPage extends WizardPage {
     private Button alwaysCharacterSet;
     private Button computedBySeparate;
     private Button alwaysQuote;
+    private Button createOrAlter;
 
-    ObjectsPage(List<String> domains, List<String> generators, List<String> tables, List<String> indexes) {
+    ObjectsPage(List<String> domains, List<String> generators, List<String> tables, List<String> views,
+            List<String> indexes) {
         super("objects");
         setTitle("Objects");
         setDescription("Escolha os objetos a extrair.");
         available.put(DOMAINS, domains);
         available.put(GENERATORS, generators);
         available.put(TABLES, tables);
+        available.put(VIEWS, views);
         available.put(INDEXES, indexes);
         GROUPS.forEach(group -> chosen.put(group, new LinkedHashSet<>()));
     }
@@ -79,6 +83,7 @@ final class ObjectsPage extends WizardPage {
         alwaysCharacterSet = check(options, "CHARACTER SET / COLLATE em todas as colunas de texto");
         computedBySeparate = check(options, "COMPUTED BY separado do CREATE TABLE (ALTER TABLE ... ADD)");
         alwaysQuote = check(options, "Always quote identifiers");
+        createOrAlter = check(options, "CREATE OR ALTER para views");
 
         Label hint = new Label(root, SWT.NONE);
         hint.setText("Selecione itens na árvore e use Add, ou Extract all para tudo.");
@@ -90,12 +95,12 @@ final class ObjectsPage extends WizardPage {
     /** Os objetos escolhidos; a página só fica completa com pelo menos um. */
     Selection selection() {
         return new Selection(Set.copyOf(chosen.get(DOMAINS)), Set.copyOf(chosen.get(GENERATORS)),
-                Set.copyOf(chosen.get(TABLES)), Set.copyOf(chosen.get(INDEXES)));
+                Set.copyOf(chosen.get(TABLES)), Set.copyOf(chosen.get(INDEXES)), Set.copyOf(chosen.get(VIEWS)));
     }
 
     ExtractionOptions options() {
         return new ExtractionOptions(createDatabase.getSelection(), alwaysCharacterSet.getSelection(),
-                computedBySeparate.getSelection(), alwaysQuote.getSelection());
+                computedBySeparate.getSelection(), alwaysQuote.getSelection(), createOrAlter.getSelection());
     }
 
     private void fillTree(String group, List<String> names) {

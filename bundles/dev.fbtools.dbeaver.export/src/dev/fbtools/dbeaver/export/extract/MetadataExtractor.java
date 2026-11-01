@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,10 +16,10 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
- * Gera o Script de metadata lendo {@code RDB$*} direto (ADR 0007). Nesta fatia: domínios, generators, tabelas, índices
- * e constraints, na ordem das Fases (domínios, generators com {@code SET GENERATOR}, tabelas com chaves primárias e
- * únicas, depois colunas calculadas separadas, índices, checks e FKs). A conexão deve usar o charset padrão do banco,
- * para que colunas {@code NONE} cheguem byte a byte (ADR 0009).
+ * Gera o Script de metadata lendo {@code RDB$*} direto (ADR 0007). Nesta fatia: domínios, generators, tabelas, views,
+ * índices e constraints, na ordem das Fases (domínios, generators com {@code SET GENERATOR}, tabelas com chaves
+ * primárias e únicas, views em ordem topológica, depois colunas calculadas separadas, índices, checks e FKs). A
+ * conexão deve usar o charset padrão do banco, para que colunas {@code NONE} cheguem byte a byte (ADR 0009).
  */
 public final class MetadataExtractor {
 
@@ -70,6 +71,11 @@ public final class MetadataExtractor {
                 .map(TableCatalog.Index::name).toList();
     }
 
+    /** Nomes das views do usuário, para a aba Objects. */
+    public List<String> listViews() throws SQLException {
+        return new ViewCatalog(connection).listViewNames();
+    }
+
     /** Como {@link #extract(Selection, ExtractionOptions, Writer, String, ExtractionProgress)} com as opções padrão. */
     public void extract(Selection selection, Writer out, String setNames, ExtractionProgress progress)
             throws SQLException, IOException {
@@ -92,8 +98,9 @@ public final class MetadataExtractor {
         List<TableCatalog.Index> indexes = catalog.readIndexes(selection, progress);
         warnIfConnectionCharsetDiffers(info, progress);
         warnAboutNoneColumns(info, domains, tables, progress);
-        warnAboutMissingDependencies(domains, tables, progress);
-        progress.begin(domains.size() + generators.size() + tables.size() + indexes.size());
+        ViewCatalog.Views views = new ViewCatalog(connection).readViews(selection, progress);
+        warnAboutMissingDependencies(domains, tables, views, progress);
+        progress.begin(domains.size() + generators.size() + tables.size() + views.size() + indexes.size());
 
         out.write("SET SQL DIALECT 3;\n");
         out.write("SET NAMES " + (setNames != null ? setNames : info.defaultCharacterSet()) + ";\n");
@@ -125,6 +132,8 @@ public final class MetadataExtractor {
         }
 
         writeTables(out, tables, options, info, progress);
+        writeComputedColumns(out, tables, options);
+        writeViews(out, views, options, progress);
         writeIndexesAndConstraints(out, tables, indexes, options, progress);
         writeDescriptions(out, domains, generators, options);
         out.flush();
@@ -154,24 +163,54 @@ public final class MetadataExtractor {
     }
 
     /**
-     * Fase de índices e FKs, depois de todas as tabelas: colunas {@code COMPUTED BY} separadas, índices, checks e FKs,
-     * nessa ordem, e por fim o ponto de partida das identities. Assim a ordem das tabelas não importa e ciclos de FK
-     * não quebram o script.
+     * Fase de views: depois de todas as tabelas e em ordem topológica. As que leem procedure (direta ou por outra
+     * view) saem num bloco à parte, que a Fase de rotinas deve passar para depois dos Cabeçalhos vazios.
      */
-    private static void writeIndexesAndConstraints(Writer out, List<TableCatalog.Table> tables,
-            List<TableCatalog.Index> indexes, ExtractionOptions options, ExtractionProgress progress)
+    private static void writeViews(Writer out, ViewCatalog.Views views, ExtractionOptions options,
+            ExtractionProgress progress) throws IOException {
+        writeViewBlock(out, "Views", views.beforeRoutines(), options, progress);
+        writeViewBlock(out, "Views that read procedures", views.afterRoutines(), options, progress);
+    }
+
+    private static void writeViewBlock(Writer out, String title, List<ViewCatalog.View> views,
+            ExtractionOptions options, ExtractionProgress progress) throws IOException {
+        if (views.isEmpty()) {
+            return;
+        }
+        out.write("\n/* " + title + " */\n\n");
+        for (ViewCatalog.View view : views) {
+            progress.checkCancelled();
+            out.write(view.toSql(options) + "\n\n");
+            progress.extracted("View " + view.name());
+        }
+    }
+
+    /** Colunas {@code COMPUTED BY} separadas: depois de todas as tabelas e antes das views, que podem lê-las. */
+    private static void writeComputedColumns(Writer out, List<TableCatalog.Table> tables, ExtractionOptions options)
             throws IOException {
         List<String> computed = new ArrayList<>();
-        List<String> checks = new ArrayList<>();
-        List<String> foreignKeys = new ArrayList<>();
-        List<String> restarts = new ArrayList<>();
-        for (TableCatalog.Table table : tables) {
-            if (options.computedBySeparate()) {
+        if (options.computedBySeparate()) {
+            for (TableCatalog.Table table : tables) {
                 for (TableCatalog.Column column : table.computedColumns()) {
                     computed.add("ALTER TABLE " + options.quote(table.name()) + " ADD "
                             + column.definition(options, null) + ";");
                 }
             }
+        }
+        writeBlock(out, "Computed columns", computed);
+    }
+
+    /**
+     * Fase de índices e FKs, depois de todas as tabelas e das views: índices, checks e FKs, nessa ordem, e por fim o
+     * ponto de partida das identities. Assim a ordem das tabelas não importa e ciclos de FK não quebram o script.
+     */
+    private static void writeIndexesAndConstraints(Writer out, List<TableCatalog.Table> tables,
+            List<TableCatalog.Index> indexes, ExtractionOptions options, ExtractionProgress progress)
+            throws IOException {
+        List<String> checks = new ArrayList<>();
+        List<String> foreignKeys = new ArrayList<>();
+        List<String> restarts = new ArrayList<>();
+        for (TableCatalog.Table table : tables) {
             for (TableCatalog.Constraint constraint : table.constraints()) {
                 if (constraint.kind().equals("CHECK")) {
                     checks.add(constraint.toSql(options));
@@ -187,7 +226,6 @@ public final class MetadataExtractor {
                 }
             }
         }
-        writeBlock(out, "Computed columns", computed);
         if (!indexes.isEmpty()) {
             out.write("\n/* Indices */\n\n");
         }
@@ -243,8 +281,10 @@ public final class MetadataExtractor {
      * já o tenha, e o usuário precisa saber.
      */
     private static void warnAboutMissingDependencies(List<Domain> domains, List<TableCatalog.Table> tables,
-            ExtractionProgress progress) {
+            ViewCatalog.Views views, ExtractionProgress progress) {
         Set<String> tableNames = tables.stream().map(TableCatalog.Table::name).collect(Collectors.toSet());
+        Set<String> relationNames = new HashSet<>(tableNames);
+        views.all().forEach(view -> relationNames.add(view.name()));
         Set<String> domainNames = domains.stream().map(Domain::name).collect(Collectors.toSet());
         Set<String> missing = new TreeSet<>();
         for (TableCatalog.Table table : tables) {
@@ -257,6 +297,17 @@ public final class MetadataExtractor {
                 if (column.domain() != null && !domainNames.contains(column.domain())) {
                     missing.add("domínio " + column.domain() + " (coluna " + table.name() + "." + column.name() + ")");
                 }
+            }
+        }
+        for (ViewCatalog.View view : views.all()) {
+            for (String relation : view.relations()) {
+                if (!relationNames.contains(relation)) {
+                    missing.add("tabela ou view " + relation + " (view " + view.name() + ")");
+                }
+            }
+            // As procedures ainda não saem no script (issue 05): a view que as lê só roda onde elas já existem.
+            for (String procedure : view.procedures()) {
+                missing.add("procedure " + procedure + " (view " + view.name() + ")");
             }
         }
         if (!missing.isEmpty()) {
