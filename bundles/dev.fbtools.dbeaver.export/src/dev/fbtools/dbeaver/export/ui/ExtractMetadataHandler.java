@@ -34,7 +34,8 @@ public final class ExtractMetadataHandler extends AbstractHandler {
         Shell shell = HandlerUtil.getActiveShell(event);
         List<String>[] catalog = loadCatalog(shell, container);
         if (catalog != null) {
-            new WizardDialog(shell, new ExtractMetadataWizard(container, catalog[0], catalog[1], catalog[2], catalog[3])).open();
+            new WizardDialog(shell, new ExtractMetadataWizard(container, catalog[0], catalog[1], catalog[2],
+                    catalog[3], catalog[4])).open();
         }
         return null;
     }
@@ -48,10 +49,10 @@ public final class ExtractMetadataHandler extends AbstractHandler {
         }
     }
 
-    /** @return {domínios, generators, tabelas, índices}, ou {@code null} se falhou (o erro já foi mostrado) */
+    /** @return {domínios, generators, tabelas, views, índices}, ou {@code null} se falhou (o erro já foi mostrado) */
     @SuppressWarnings("unchecked")
     private static List<String>[] loadCatalog(Shell shell, DBPDataSourceContainer container) {
-        List<String>[] catalog = new List[4];
+        List<String>[] catalog = new List[5];
         try {
             UIUtils.runInProgressDialog(monitor -> {
                 monitor.beginTask("Lendo os objetos de " + container.getName(), 1);
@@ -62,7 +63,8 @@ public final class ExtractMetadataHandler extends AbstractHandler {
                     catalog[0] = extractor.listDomains();
                     catalog[1] = extractor.listGenerators();
                     catalog[2] = extractor.listTables();
-                    catalog[3] = extractor.listIndexes();
+                    catalog[3] = extractor.listViews();
+                    catalog[4] = extractor.listIndexes();
                 } catch (DBException | SQLException e) {
                     throw new InvocationTargetException(e);
                 } finally {

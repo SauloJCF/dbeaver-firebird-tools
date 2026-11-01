@@ -5,11 +5,18 @@ package dev.fbtools.dbeaver.export.extract;
  * 0009). {@code alwaysCharacterSet}: {@code CHARACTER SET}/{@code COLLATE} em todas as colunas de texto, e não só
  * quando diferem do padrão do banco. {@code computedBySeparate}: colunas {@code COMPUTED BY} fora do
  * {@code CREATE TABLE}, em {@code ALTER TABLE ... ADD}. {@code alwaysQuote}: todos os identificadores entre aspas.
+ * {@code createOrAlter}: {@code CREATE OR ALTER} nas views (e, nos próximos issues, em procedures e triggers).
  */
 public record ExtractionOptions(boolean createDatabase, boolean alwaysCharacterSet, boolean computedBySeparate,
-        boolean alwaysQuote) {
+        boolean alwaysQuote, boolean createOrAlter) {
 
-    public static final ExtractionOptions DEFAULT = new ExtractionOptions(false, false, false, false);
+    public static final ExtractionOptions DEFAULT = new ExtractionOptions(false, false, false, false, false);
+
+    /** Sem {@code CREATE OR ALTER}. */
+    public ExtractionOptions(boolean createDatabase, boolean alwaysCharacterSet, boolean computedBySeparate,
+            boolean alwaysQuote) {
+        this(createDatabase, alwaysCharacterSet, computedBySeparate, alwaysQuote, false);
+    }
 
     /** O nome como vai no script, conforme {@code alwaysQuote}. */
     String quote(String name) {
