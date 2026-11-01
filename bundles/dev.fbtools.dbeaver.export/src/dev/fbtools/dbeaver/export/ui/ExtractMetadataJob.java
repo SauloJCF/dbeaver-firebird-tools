@@ -24,6 +24,7 @@ import org.jkiss.dbeaver.ui.editors.EditorUtils;
 import dev.fbtools.dbeaver.export.extract.DatabaseInfo;
 import dev.fbtools.dbeaver.export.extract.ExtractionCancelledException;
 import dev.fbtools.dbeaver.export.extract.ExtractionFile;
+import dev.fbtools.dbeaver.export.extract.ExtractionOptions;
 import dev.fbtools.dbeaver.export.extract.ExtractionProgress;
 import dev.fbtools.dbeaver.export.extract.Selection;
 
@@ -37,15 +38,17 @@ final class ExtractMetadataJob extends AbstractJob {
 
     private final DBPDataSourceContainer container;
     private final Selection selection;
+    private final ExtractionOptions options;
     private final Path file;
     private final OutputPage.Encoding encoding;
     private final boolean openWhenDone;
 
-    ExtractMetadataJob(DBPDataSourceContainer container, Selection selection, Path file,
+    ExtractMetadataJob(DBPDataSourceContainer container, Selection selection, ExtractionOptions options, Path file,
             OutputPage.Encoding encoding, boolean openWhenDone) {
         super("Extract Metadata - " + container.getName());
         this.container = container;
         this.selection = selection;
+        this.options = options;
         this.file = file;
         this.encoding = encoding;
         this.openWhenDone = openWhenDone;
@@ -62,7 +65,7 @@ final class ExtractMetadataJob extends AbstractJob {
             DatabaseInfo info = DatabaseInfo.read(connection);
             boolean utf8 = encoding == OutputPage.Encoding.UTF8;
             Charset charset = OutputPage.javaCharset(encoding, info.javaCharset());
-            ExtractionFile.write(connection, selection, file, charset, utf8 ? "UTF8" : null,
+            ExtractionFile.write(connection, selection, options, file, charset, utf8 ? "UTF8" : null,
                     progress(monitor, warnings));
         } catch (ExtractionCancelledException e) {
             return Status.CANCEL_STATUS;

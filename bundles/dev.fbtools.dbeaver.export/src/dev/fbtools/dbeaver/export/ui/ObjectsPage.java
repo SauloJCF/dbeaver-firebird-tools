@@ -1,7 +1,9 @@
 package dev.fbtools.dbeaver.export.ui;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.jface.wizard.WizardPage;
@@ -14,28 +16,41 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Tree;
 import org.eclipse.swt.widgets.TreeItem;
 
+import dev.fbtools.dbeaver.export.extract.ExtractionOptions;
 import dev.fbtools.dbeaver.export.extract.Selection;
 
-/** Aba Objects: árvore dos objetos disponíveis à esquerda, lista dos selecionados à direita. */
+/** Aba Objects: árvore dos objetos disponíveis à esquerda, lista dos selecionados à direita, e as opções do script. */
 final class ObjectsPage extends WizardPage {
 
     private static final String DOMAINS = "Domains";
     private static final String GENERATORS = "Generators";
+    private static final String TABLES = "Tables";
+    private static final String INDEXES = "Indexes";
 
-    private final List<String> availableDomains;
-    private final List<String> availableGenerators;
-    private final Set<String> domains = new LinkedHashSet<>();
-    private final Set<String> generators = new LinkedHashSet<>();
+    /** Grupo da árvore -> prefixo do objeto na lista dos selecionados, na ordem das Fases. */
+    private static final Map<String, String> LABELS = Map.of(DOMAINS, "Domain ", GENERATORS, "Generator ",
+            TABLES, "Table ", INDEXES, "Index ");
+    private static final List<String> GROUPS = List.of(DOMAINS, GENERATORS, TABLES, INDEXES);
 
-    private Tree available;
+    private final Map<String, List<String>> available = new LinkedHashMap<>();
+    private final Map<String, Set<String>> chosen = new LinkedHashMap<>();
+
+    private Tree tree;
     private org.eclipse.swt.widgets.List selected;
+    private Button createDatabase;
+    private Button alwaysCharacterSet;
+    private Button computedBySeparate;
+    private Button alwaysQuote;
 
-    ObjectsPage(List<String> availableDomains, List<String> availableGenerators) {
+    ObjectsPage(List<String> domains, List<String> generators, List<String> tables, List<String> indexes) {
         super("objects");
         setTitle("Objects");
         setDescription("Escolha os objetos a extrair.");
-        this.availableDomains = availableDomains;
-        this.availableGenerators = availableGenerators;
+        available.put(DOMAINS, domains);
+        available.put(GENERATORS, generators);
+        available.put(TABLES, tables);
+        available.put(INDEXES, indexes);
+        GROUPS.forEach(group -> chosen.put(group, new LinkedHashSet<>()));
     }
 
     @Override
@@ -43,10 +58,9 @@ final class ObjectsPage extends WizardPage {
         Composite root = new Composite(parent, SWT.NONE);
         root.setLayout(new GridLayout(3, false));
 
-        available = new Tree(root, SWT.MULTI | SWT.BORDER);
-        available.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
-        fillTree(DOMAINS, availableDomains);
-        fillTree(GENERATORS, availableGenerators);
+        tree = new Tree(root, SWT.MULTI | SWT.BORDER);
+        tree.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+        GROUPS.forEach(group -> fillTree(group, available.get(group)));
 
         Composite buttons = new Composite(root, SWT.NONE);
         buttons.setLayout(new GridLayout());
@@ -58,6 +72,14 @@ final class ObjectsPage extends WizardPage {
         selected = new org.eclipse.swt.widgets.List(root, SWT.MULTI | SWT.BORDER | SWT.V_SCROLL);
         selected.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
+        Composite options = new Composite(root, SWT.NONE);
+        options.setLayout(new GridLayout());
+        options.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        createDatabase = check(options, "Incluir CREATE DATABASE (sem usuário nem senha)");
+        alwaysCharacterSet = check(options, "CHARACTER SET / COLLATE em todas as colunas de texto");
+        computedBySeparate = check(options, "COMPUTED BY separado do CREATE TABLE (ALTER TABLE ... ADD)");
+        alwaysQuote = check(options, "Always quote identifiers");
+
         Label hint = new Label(root, SWT.NONE);
         hint.setText("Selecione itens na árvore e use Add, ou Extract all para tudo.");
         hint.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
@@ -67,11 +89,17 @@ final class ObjectsPage extends WizardPage {
 
     /** Os objetos escolhidos; a página só fica completa com pelo menos um. */
     Selection selection() {
-        return new Selection(Set.copyOf(domains), Set.copyOf(generators));
+        return new Selection(Set.copyOf(chosen.get(DOMAINS)), Set.copyOf(chosen.get(GENERATORS)),
+                Set.copyOf(chosen.get(TABLES)), Set.copyOf(chosen.get(INDEXES)));
+    }
+
+    ExtractionOptions options() {
+        return new ExtractionOptions(createDatabase.getSelection(), alwaysCharacterSet.getSelection(),
+                computedBySeparate.getSelection(), alwaysQuote.getSelection());
     }
 
     private void fillTree(String group, List<String> names) {
-        TreeItem root = new TreeItem(available, SWT.NONE);
+        TreeItem root = new TreeItem(tree, SWT.NONE);
         root.setText(group + " (" + names.size() + ")");
         root.setData(group);
         for (String name : names) {
@@ -83,7 +111,7 @@ final class ObjectsPage extends WizardPage {
     }
 
     private void addSelected() {
-        for (TreeItem item : available.getSelection()) {
+        for (TreeItem item : tree.getSelection()) {
             if (item.getParentItem() == null) {
                 // Selecionar o grupo adiciona todos os objetos dele.
                 for (TreeItem child : item.getItems()) {
@@ -97,34 +125,41 @@ final class ObjectsPage extends WizardPage {
     }
 
     private void add(TreeItem item) {
-        (DOMAINS.equals(item.getData()) ? domains : generators).add(item.getText());
+        chosen.get((String) item.getData()).add(item.getText());
     }
 
     private void removeSelected() {
         for (String entry : selected.getSelection()) {
-            String name = entry.substring(entry.indexOf(' ') + 1);
-            (entry.startsWith("Domain ") ? domains : generators).remove(name);
+            for (String group : GROUPS) {
+                String label = LABELS.get(group);
+                if (entry.startsWith(label)) {
+                    chosen.get(group).remove(entry.substring(label.length()));
+                }
+            }
         }
         refresh();
     }
 
     private void addAll() {
-        domains.addAll(availableDomains);
-        generators.addAll(availableGenerators);
+        GROUPS.forEach(group -> chosen.get(group).addAll(available.get(group)));
         refresh();
     }
 
     private void clear() {
-        domains.clear();
-        generators.clear();
+        chosen.values().forEach(Set::clear);
         refresh();
     }
 
     private void refresh() {
         selected.removeAll();
-        domains.forEach(name -> selected.add("Domain " + name));
-        generators.forEach(name -> selected.add("Generator " + name));
-        setPageComplete(!domains.isEmpty() || !generators.isEmpty());
+        boolean any = false;
+        for (String group : GROUPS) {
+            for (String name : chosen.get(group)) {
+                selected.add(LABELS.get(group) + name);
+                any = true;
+            }
+        }
+        setPageComplete(any);
     }
 
     private static Button button(Composite parent, String text, Runnable action) {
@@ -132,6 +167,12 @@ final class ObjectsPage extends WizardPage {
         button.setText(text);
         button.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
         button.addListener(SWT.Selection, event -> action.run());
+        return button;
+    }
+
+    private static Button check(Composite parent, String text) {
+        Button button = new Button(parent, SWT.CHECK);
+        button.setText(text);
         return button;
     }
 }

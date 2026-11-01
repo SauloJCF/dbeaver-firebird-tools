@@ -12,9 +12,10 @@ final class ExtractMetadataWizard extends Wizard {
     private final ObjectsPage objects;
     private final OutputPage output;
 
-    ExtractMetadataWizard(DBPDataSourceContainer container, List<String> domains, List<String> generators) {
+    ExtractMetadataWizard(DBPDataSourceContainer container, List<String> domains, List<String> generators,
+            List<String> tables, List<String> indexes) {
         this.container = container;
-        this.objects = new ObjectsPage(domains, generators);
+        this.objects = new ObjectsPage(domains, generators, tables, indexes);
         this.output = new OutputPage(container.getName());
         setWindowTitle("Extract Metadata - " + container.getName());
         setNeedsProgressMonitor(false);
@@ -29,7 +30,8 @@ final class ExtractMetadataWizard extends Wizard {
     @Override
     public boolean performFinish() {
         output.rememberDirectory();
-        new ExtractMetadataJob(container, objects.selection(), output.path(), output.encoding(), output.openWhenDone())
+        new ExtractMetadataJob(container, objects.selection(), objects.options(), output.path(), output.encoding(),
+                output.openWhenDone())
                 .schedule();
         return true;
     }
