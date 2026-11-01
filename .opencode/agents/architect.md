@@ -3,7 +3,11 @@ description: Decisões de arquitetura e domínio do Firebird Tools. Use quando o
 mode: subagent
 model: anthropic/claude-opus-5-5
 permission:
-  edit: allow
+  edit:
+    "*": deny
+    "docs/adr/*.md": allow
+    "GLOSSARY.md": allow
+    ".scratch/*/spec.md": allow
   bash: deny
   webfetch: deny
 ---

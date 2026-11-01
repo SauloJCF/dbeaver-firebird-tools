@@ -24,13 +24,13 @@ Foi descoberto ao rodar a suíte: 3 testes falhavam (`ValueTextTest`, `Exception
 
 ## Decisão (triagem)
 
-Responsável principal: `debug-ui` (o `psql-interpreter` cobre `TestDatabase`).
+Área principal: Debug UI (a área Interpretador cobre `TestDatabase`).
 
 - **Abordagem:** executar `SET BIND OF … TO NATIVE` na abertura da Sessão de debug, num ponto único (`RoutineLauncher.connection()` ou equivalente). Descartadas: conexão própria com `dataTypeBind` (obrigaria sair de `openIsolatedContext` e reimplementar credenciais, SSL e túnel) e não tratar (não serve para o ambiente do mantenedor).
 - **Tipos:** `BOOLEAN`, `DECFLOAT`, `INT128` e `TIME ZONE`, o mesmo conjunto do contorno atual dos testes.
 - **Falha do `SET BIND`:** abortar o launch com a mensagem do servidor. Não depurar com tipos errados em silêncio.
 - **Testes:** remover o `dataTypeBind` de `TestDatabase.connect()`. O `SET BIND` fica num ponto compartilhado, que a Sessão e a conexão de referência do Teste diferencial usam. A suíte roda só contra o servidor local em `2.5`; um segundo servidor em `DataTypeCompatibility` padrão fica como melhoria futura.
-- **Fora do escopo:** Exportação (Script de dados). Nota deixada no `## Comments` do issue 08 da exportação, para o `export-data`.
+- **Fora do escopo:** Exportação (Script de dados). Nota deixada no `## Comments` do issue 08 da exportação, para a área Exportação: dados.
 
 ## Critérios de aceite
 

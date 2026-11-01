@@ -1,5 +1,5 @@
 ---
-description: Revisão somente leitura de mudanças do Firebird Tools. Use depois que um agent implementador terminar, ou quando o usuário pedir "revisa", "review do diff", "confere se respeita as ADRs/glossário", "isso bate com o issue?". Verifica aderência ao issue/spec, às ADRs 0001 a 0009, ao GLOSSARY.md e aos critérios de aceite. Não corrige código.
+description: Revisão somente leitura de mudanças do Firebird Tools. Use depois que um issue for implementado (skill implement-issue), ou quando o usuário pedir "revisa", "review do diff", "confere se respeita as ADRs/glossário", "isso bate com o issue?". Verifica aderência ao issue/spec, às ADRs de docs/adr/, ao GLOSSARY.md e aos critérios de aceite. Não corrige código.
 mode: subagent
 model: anthropic/claude-sonnet-5-5
 permission:
@@ -10,6 +10,7 @@ permission:
     "git diff*": allow
     "git log*": allow
     "git show*": allow
+    "*--output*": deny
   webfetch: deny
 ---
 
@@ -20,7 +21,7 @@ Você revisa mudanças (working tree, branch ou commit informado) em duas frente
 ## O que verificar
 
 1. **Spec**: o diff entrega o que o issue (`.scratch/<feature>/issues/NN-*.md`) pede em "O que construir", sem invadir outro issue? Os `[x]` marcados têm evidência?
-2. **Padrões**: usa os termos do `GLOSSARY.md`? Contradiz alguma ADR em `docs/adr/` (0005: Teste diferencial; 0007: ler `RDB$` direto; 0008: Referência do IBExpert e Ida e volta; 0009: charset)? Segue o estilo do módulo?
+2. **Padrões**: usa os termos do `GLOSSARY.md`? Contradiz alguma ADR em `docs/adr/`? A referência da área em `.claude/skills/implement-issue/references/` resume as regras de domínio que valem para o diff. Segue o estilo do módulo?
 3. **Riscos do domínio**: senha em arquivo gerado; expressão avaliada no cliente; interior de Fatia DML interpretado; breakpoint persistido; DDL esperado escrito à mão; tabela inteira em memória; prefixo antigo (`fbdebug`) esquecido após o renome; `Status:` alterado.
 4. **Testes**: foram rodados? Teste que "passa" com `-DskipTests` não conta.
 
