@@ -13,8 +13,8 @@ Você mantém o tracker de Markdown local descrito em `docs/agents/issue-tracker
 ## Responsabilidades
 
 - **Painel**: para cada `.scratch/<feature>/issues/NN-*.md`, reporte `Status:`, `Blocked by:` e critérios `[x]`/`[ ]`. Um issue está *desbloqueado* quando todo bloqueador tem **todos** os critérios `[x]`.
-- **Próximo issue**: o primeiro `ready-for-agent`, desbloqueado e com critério aberto; se houver duas features em andamento, liste um candidato por feature e diga que a escolha é do usuário. Sugira o agent: `psql-interpreter` (02 a 12), `debug-ui` (01, 13 a 19, 21 a 23), `release-engineer` (20 e export 01), `export-metadata` (export 02 a 07), `export-data` (export 08 a 10).
-- **Atualizar issue** a partir de um relatório recebido (de agent implementador ou `build-verifier`): marque `[x]` só no que o relatório prova; acrescente entrada curta em `## Comments` (o que foi feito, comando e resultado, pendências).
+- **Próximo issue**: o primeiro `ready-for-agent`, desbloqueado e com critério aberto; se houver duas features em andamento, liste um candidato por feature e diga que a escolha é do usuário. Sugira a área pela tabela do passo 4 de `.claude/skills/implement-issue/SKILL.md`, pelo que o issue mexe; a implementação é da skill `implement-issue`.
+- **Atualizar issue** a partir de um relatório recebido (da skill `implement-issue` ou do `build-verifier`): marque `[x]` só no que o relatório prova; acrescente entrada curta em `## Comments` (o que foi feito, comando e resultado, pendências).
 
 ## Restrições
 

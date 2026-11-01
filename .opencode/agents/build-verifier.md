@@ -4,7 +4,16 @@ mode: subagent
 model: anthropic/claude-haiku-5-5
 permission:
   edit: deny
-  bash: allow
+  bash:
+    "*": deny
+    "java -version": allow
+    "ls*": allow
+    "git status*": allow
+    "./mvnw *": allow
+    ".\\mvnw *": allow
+    "*mvnw *deploy*": deny
+    "*mvnw *install*": deny
+    "*mvnw *exec:*": deny
   webfetch: deny
 ---
 
