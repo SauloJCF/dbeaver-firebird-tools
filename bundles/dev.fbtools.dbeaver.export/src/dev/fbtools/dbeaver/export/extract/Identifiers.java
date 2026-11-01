@@ -38,7 +38,12 @@ public final class Identifiers {
 
     /** O nome como vai no script: sem aspas se for um identificador simples, entre aspas duplas caso contrário. */
     public static String quote(String name) {
-        return needsQuotes(name) ? '"' + name.replace("\"", "\"\"") + '"' : name;
+        return quote(name, false);
+    }
+
+    /** Como {@link #quote(String)}; com {@code always}, o nome sempre vai entre aspas. */
+    public static String quote(String name, boolean always) {
+        return always || needsQuotes(name) ? '"' + name.replace("\"", "\"\"") + '"' : name;
     }
 
     public static boolean needsQuotes(String name) {

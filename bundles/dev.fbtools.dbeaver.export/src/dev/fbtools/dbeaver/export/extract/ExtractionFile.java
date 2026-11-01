@@ -22,11 +22,17 @@ public final class ExtractionFile {
      */
     public static void write(Connection connection, Selection selection, Path file, Charset charset, String setNames,
             ExtractionProgress progress) throws SQLException, IOException {
+        write(connection, selection, ExtractionOptions.DEFAULT, file, charset, setNames, progress);
+    }
+
+    /** Como {@link #write(Connection, Selection, Path, Charset, String, ExtractionProgress)}, com as opções do script. */
+    public static void write(Connection connection, Selection selection, ExtractionOptions options, Path file,
+            Charset charset, String setNames, ExtractionProgress progress) throws SQLException, IOException {
         Charset encoding = charset != null ? charset : DatabaseInfo.read(connection).javaCharset();
         boolean done = false;
         try (BufferedWriter out = new BufferedWriter(
                 new OutputStreamWriter(Files.newOutputStream(file), encoding))) {
-            new MetadataExtractor(connection).extract(selection, out, setNames, progress);
+            new MetadataExtractor(connection).extract(selection, options, out, setNames, progress);
             done = true;
         } finally {
             if (!done) {

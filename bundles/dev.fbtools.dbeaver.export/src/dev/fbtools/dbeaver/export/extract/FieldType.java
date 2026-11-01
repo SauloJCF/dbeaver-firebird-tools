@@ -3,9 +3,15 @@ package dev.fbtools.dbeaver.export.extract;
 /**
  * Tipo de um campo de {@code RDB$FIELDS} em SQL. Charset e collation vêm já resolvidos pelo nome; o charset padrão do
  * banco e a collation padrão do charset são omitidos, a menos que {@code alwaysCharset} (ADR 0009).
+ * {@code dimensions} (ex.: {@code [1:5]}) é o de uma Coluna array, ou {@code null}.
  */
 record FieldType(int type, int subType, int length, Integer charLength, Integer precision, int scale,
-        Integer segmentSize, String characterSet, String collation) {
+        Integer segmentSize, String characterSet, String collation, String dimensions) {
+
+    /** Texto em CHARACTER SET NONE: o servidor não sabe o charset real dos bytes. */
+    boolean isNoneText() {
+        return "NONE".equals(characterSet) && (type == 14 || type == 37 || (type == 261 && subType == 1));
+    }
 
     String toSql(String defaultCharacterSet, boolean alwaysCharset) {
         String sql = switch (type) {
@@ -29,6 +35,10 @@ record FieldType(int type, int subType, int length, Integer charLength, Integer 
             default -> throw new IllegalStateException("Tipo de campo desconhecido: " + type);
         };
         boolean text = type == 14 || type == 37 || (type == 261 && subType == 1);
+        // A sintaxe põe as dimensões antes do CHARACTER SET: VARCHAR(10) [1:5] CHARACTER SET WIN1252.
+        if (dimensions != null) {
+            sql += " " + dimensions;
+        }
         return text && characterSet != null ? sql + characterSetClause(defaultCharacterSet, alwaysCharset) : sql;
     }
 
@@ -38,7 +48,7 @@ record FieldType(int type, int subType, int length, Integer charLength, Integer 
         if (alwaysCharset || customCollation || !characterSet.equals(defaultCharacterSet)) {
             clause.append(" CHARACTER SET ").append(characterSet);
         }
-        if (customCollation) {
+        if (customCollation || (alwaysCharset && collation != null)) {
             clause.append(" COLLATE ").append(Identifiers.quote(collation));
         }
         return clause.toString();

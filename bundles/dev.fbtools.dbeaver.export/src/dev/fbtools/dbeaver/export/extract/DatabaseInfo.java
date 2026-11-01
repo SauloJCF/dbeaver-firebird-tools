@@ -7,14 +7,23 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/** O que o script precisa saber do banco antes de escrever: o charset padrão (ADR 0009). */
-public record DatabaseInfo(String defaultCharacterSet) {
+/**
+ * O que o script precisa saber do banco antes de escrever: o charset padrão (ADR 0009) e a collation padrão dele,
+ * {@code null} quando é a que o charset traz de fábrica (o próprio nome do charset).
+ */
+public record DatabaseInfo(String defaultCharacterSet, String defaultCollation) {
 
     public static DatabaseInfo read(Connection connection) throws SQLException {
+        // O COLLATION do CREATE DATABASE fica em RDB$DEFAULT_COLLATE_NAME do charset padrão (não em RDB$DATABASE).
         try (Statement statement = connection.createStatement();
-                ResultSet rs = statement.executeQuery("SELECT RDB$CHARACTER_SET_NAME FROM RDB$DATABASE")) {
+                ResultSet rs = statement.executeQuery("SELECT d.RDB$CHARACTER_SET_NAME, cs.RDB$DEFAULT_COLLATE_NAME "
+                        + "FROM RDB$DATABASE d LEFT JOIN RDB$CHARACTER_SETS cs "
+                        + "ON cs.RDB$CHARACTER_SET_NAME = d.RDB$CHARACTER_SET_NAME")) {
             String name = rs.next() ? rs.getString(1) : null;
-            return new DatabaseInfo(name == null || name.isBlank() ? "NONE" : name.strip());
+            String charset = name == null || name.isBlank() ? "NONE" : name.strip();
+            String collation = name == null ? null : rs.getString(2);
+            collation = collation == null ? null : collation.strip();
+            return new DatabaseInfo(charset, charset.equals(collation) ? null : collation);
         }
     }
 
