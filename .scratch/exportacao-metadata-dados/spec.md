@@ -2,7 +2,7 @@
 
 Status: needs-triage
 
-Vocabulário: ver `GLOSSARY.md` (seção "Exportação de metadata e dados"). Decisões: `docs/adr/0006` a `0009`.
+Vocabulário: ver `GLOSSARY.md` (seção "Exportação de metadata e dados"). Decisões: `docs/adr/0006` a `0011`.
 
 ## Objetivo
 
@@ -38,7 +38,9 @@ Extrair do DBeaver CE, para um arquivo `.sql`, o metadata de um banco Firebird 5
 
 ### Script gerado
 
-- Fases em ordem de dependência (ADR 0007): domínios, generators/sequences, exceptions, UDFs, collations, tabelas sem FKs, views em ordem topológica, Cabeçalhos vazios de rotinas/functions/packages, índices e FKs, corpos, triggers, `SET GENERATOR`, descrições, grants.
+- Fases em ordem de dependência (ADR 0007, revista pela ADR 0011): domínios, generators/sequences, exceptions, UDFs, collations, tabelas sem FKs (só PK e UNIQUE), colunas `COMPUTED BY` separadas, views que não leem Rotina em ordem topológica, Cabeçalhos vazios (packages, functions, procedures), índices, checks e FKs, corpos intercalados com as views que leem Rotina, triggers, `SET GENERATOR`, descrições, grants.
+- Na Fase dos corpos, cada view que lê Rotina sai depois do corpo das Rotinas que lê e das views que lê, e antes do corpo que a lê. Uma view "lê Rotina" também quando chama function ou rotina de package numa coluna, ou quando lê outra view que lê Rotina.
+- Sem ordem que o Firebird aceite (ADR 0011): coluna `COMPUTED BY`, índice de expressão ou `CHECK` que chama Rotina (a Extração avisa que o script só roda num banco onde a Rotina já exista) e ciclo entre corpo e view, isto é, Rotina que lê view que lê a própria Rotina (o script falha nesse ponto, e a Extração avisa).
 - Para `isql` e DBeaver, com `SET TERM`; senha nunca no arquivo.
 - Charset do script conforme ADR 0009; `CREATE DATABASE` sempre com `DEFAULT CHARACTER SET`; aviso se houver colunas `NONE`.
 - Dados: `INSERT`s em ordem de FK, lidos em streaming.

@@ -23,3 +23,9 @@ Blocked by: 05
 - Gerar a nova Referência do IBExpert (ADR 0008).
 
 ## Comments
+
+### Nota da issue 05 (agente, 2026-11-01)
+
+- Exceptions precisam sair **antes** dos corpos das rotinas (o corpo de `SP_FECHAR_PEDIDO` usa `E_PEDIDO_FECHADO`). Ao implementá-las, remover `ExportTestDatabase.createSyntheticExceptions()` e as chamadas em `DomainsAndGeneratorsExtractionTest`, `TablesExtractionTest`, `ViewsExtractionTest` e `RoutinesExtractionTest`.
+- Triggers que leem views ou chamam rotinas devem sair depois do bloco `Routine bodies` / `Views that read routines`.
+- Desvio herdado da 02: `SET GENERATOR` sai junto de cada `CREATE GENERATOR`, mas a ADR 0007 e a spec o põem numa Fase própria, depois dos triggers. Mover aqui ou registrar a decisão de manter.

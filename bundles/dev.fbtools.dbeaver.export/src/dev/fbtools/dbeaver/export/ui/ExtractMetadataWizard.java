@@ -13,9 +13,11 @@ final class ExtractMetadataWizard extends Wizard {
     private final OutputPage output;
 
     ExtractMetadataWizard(DBPDataSourceContainer container, List<String> domains, List<String> generators,
-            List<String> tables, List<String> views, List<String> indexes) {
+            List<String> tables, List<String> views, List<String> indexes, List<String> procedures,
+            List<String> functions, List<String> packages) {
         this.container = container;
-        this.objects = new ObjectsPage(domains, generators, tables, views, indexes);
+        this.objects = new ObjectsPage(domains, generators, tables, views, indexes, procedures, functions,
+                packages);
         this.output = new OutputPage(container.getName());
         setWindowTitle("Extract Metadata - " + container.getName());
         setNeedsProgressMonitor(false);

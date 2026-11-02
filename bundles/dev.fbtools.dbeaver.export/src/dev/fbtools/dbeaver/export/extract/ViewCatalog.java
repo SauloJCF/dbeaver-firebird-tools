@@ -17,7 +17,8 @@ import java.util.stream.Collectors;
 
 /**
  * Views lidas de {@code RDB$*} (ADR 0007) e ordenadas por {@code RDB$DEPENDENCIES}: a view que lê outra vem depois
- * dela. Uma view que lê procedure selecionável não pode vir antes do Cabeçalho vazio da procedure, então sai à parte.
+ * dela. Uma view que lê rotina selecionável sai à parte ({@link Views#afterRoutines()}): o script a põe depois do
+ * corpo da rotina (e antes do corpo que a lê), não junto das demais.
  */
 final class ViewCatalog {
 
@@ -35,12 +36,20 @@ final class ViewCatalog {
              WHERE COALESCE(r.RDB$SYSTEM_FLAG, 0) = 0 AND r.RDB$VIEW_BLR IS NOT NULL
              ORDER BY rf.RDB$RELATION_NAME, rf.RDB$FIELD_POSITION""";
 
-    // Dependente tipo 1 é view; o que ela lê é tabela (0), view (1) ou procedure (5).
+    // Dependente tipo 1 é view; o que ela lê é tabela (0), view (1), procedure (5), function (15) ou package (18).
+    // Function e package chamados numa coluna da view ficam como dependência de tipo 3 do campo anônimo da coluna.
     private static final String DEPENDENCIES = """
-            SELECT DISTINCT d.RDB$DEPENDENT_NAME, d.RDB$DEPENDED_ON_NAME, d.RDB$DEPENDED_ON_TYPE
+            SELECT DISTINCT d.RDB$DEPENDENT_NAME, d.RDB$DEPENDED_ON_NAME, d.RDB$DEPENDED_ON_TYPE, d.RDB$PACKAGE_NAME
               FROM RDB$DEPENDENCIES d
               JOIN RDB$RELATIONS r ON r.RDB$RELATION_NAME = d.RDB$DEPENDENT_NAME
-             WHERE d.RDB$DEPENDENT_TYPE = 1 AND d.RDB$DEPENDED_ON_TYPE IN (0, 1, 5)
+             WHERE d.RDB$DEPENDENT_TYPE = 1 AND d.RDB$DEPENDED_ON_TYPE IN (0, 1, 5, 15, 18)
+               AND COALESCE(r.RDB$SYSTEM_FLAG, 0) = 0 AND r.RDB$VIEW_BLR IS NOT NULL
+            UNION
+            SELECT rf.RDB$RELATION_NAME, d.RDB$DEPENDED_ON_NAME, d.RDB$DEPENDED_ON_TYPE, d.RDB$PACKAGE_NAME
+              FROM RDB$DEPENDENCIES d
+              JOIN RDB$RELATION_FIELDS rf ON rf.RDB$FIELD_SOURCE = d.RDB$DEPENDENT_NAME
+              JOIN RDB$RELATIONS r ON r.RDB$RELATION_NAME = rf.RDB$RELATION_NAME
+             WHERE d.RDB$DEPENDENT_TYPE = 3 AND d.RDB$DEPENDED_ON_TYPE IN (5, 15, 18)
                AND COALESCE(r.RDB$SYSTEM_FLAG, 0) = 0 AND r.RDB$VIEW_BLR IS NOT NULL""";
 
     private final Connection connection;
@@ -50,10 +59,11 @@ final class ViewCatalog {
     }
 
     /**
-     * Uma view. {@code relations} são as tabelas e views que ela lê, e {@code procedures} as procedures; {@code source}
-     * é a consulta como o autor escreveu ({@code RDB$VIEW_SOURCE}).
+     * Uma view. {@code relations} são as tabelas e views que ela lê, e {@code routines} as rotinas
+     * ({@code procedure X}, {@code function X}, {@code package X}); {@code source} é a consulta como o autor
+     * escreveu ({@code RDB$VIEW_SOURCE}).
      */
-    record View(String name, List<String> columns, String source, Set<String> relations, Set<String> procedures) {
+    record View(String name, List<String> columns, String source, Set<String> relations, Set<String> routines) {
 
         String toSql(ExtractionOptions options) {
             return (options.createOrAlter() ? "CREATE OR ALTER VIEW " : "CREATE VIEW ") + options.quote(name) + " ("
@@ -62,7 +72,7 @@ final class ViewCatalog {
         }
     }
 
-    /** As views da seleção em ordem topológica; {@code afterRoutines} guarda as que dependem de procedure. */
+    /** As views da seleção em ordem topológica; {@code afterRoutines} guarda as que dependem de rotina. */
     record Views(List<View> beforeRoutines, List<View> afterRoutines) {
 
         int size() {
@@ -89,12 +99,18 @@ final class ViewCatalog {
     Views readViews(Selection selection, ExtractionProgress progress) throws SQLException {
         Map<String, List<String>> columns = readColumns();
         Map<String, Set<String>> relations = new TreeMap<>();
-        Map<String, Set<String>> procedures = new TreeMap<>();
+        Map<String, Set<String>> routines = new TreeMap<>();
         try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(DEPENDENCIES)) {
             while (rs.next()) {
                 String view = rs.getString(1).strip();
                 String target = rs.getString(2).strip();
-                (rs.getInt(3) == 5 ? procedures : relations).computeIfAbsent(view, k -> new TreeSet<>()).add(target);
+                int type = rs.getInt(3);
+                if (type == 0 || type == 1) {
+                    relations.computeIfAbsent(view, k -> new TreeSet<>()).add(target);
+                } else {
+                    routines.computeIfAbsent(view, k -> new TreeSet<>())
+                            .add(RoutineCatalog.routineName(type, target, Rdb.trimmed(rs.getString(4))));
+                }
             }
         }
         Map<String, View> views = new LinkedHashMap<>();
@@ -105,7 +121,7 @@ final class ViewCatalog {
                 if (selection.includesView(name)) {
                     views.put(name, new View(name, columns.getOrDefault(name, List.of()),
                             Rdb.source(rs.getString(2)), relations.getOrDefault(name, Set.of()),
-                            procedures.getOrDefault(name, Set.of())));
+                            routines.getOrDefault(name, Set.of())));
                 }
             }
         }
@@ -124,7 +140,7 @@ final class ViewCatalog {
 
     /**
      * Depth-first sobre os nomes em ordem alfabética: cada view sai depois das views que ela lê, e a saída é estável.
-     * Views fora da seleção não entram na ordem. Depois separa as que leem procedure, direta ou indiretamente.
+     * Views fora da seleção não entram na ordem. Depois separa as que leem rotina, direta ou indiretamente.
      */
     private static Views order(Map<String, View> views) {
         List<View> sorted = new ArrayList<>();
@@ -135,7 +151,7 @@ final class ViewCatalog {
         Set<String> afterRoutines = new LinkedHashSet<>();
         for (View view : sorted) {
             // Na ordem topológica, quem lê uma view que já está à parte também fica à parte.
-            if (!view.procedures().isEmpty() || view.relations().stream().anyMatch(afterRoutines::contains)) {
+            if (!view.routines().isEmpty() || view.relations().stream().anyMatch(afterRoutines::contains)) {
                 afterRoutines.add(view.name());
             }
         }

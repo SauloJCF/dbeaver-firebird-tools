@@ -27,11 +27,16 @@ final class ObjectsPage extends WizardPage {
     private static final String TABLES = "Tables";
     private static final String VIEWS = "Views";
     private static final String INDEXES = "Indexes";
+    private static final String PROCEDURES = "Procedures";
+    private static final String FUNCTIONS = "Functions";
+    private static final String PACKAGES = "Packages";
 
-    /** Grupo da árvore -> prefixo do objeto na lista dos selecionados, na ordem das Fases. */
+    /** Grupo da árvore -> prefixo do objeto na lista dos selecionados, na ordem do tipo (não a das Fases). */
     private static final Map<String, String> LABELS = Map.of(DOMAINS, "Domain ", GENERATORS, "Generator ",
-            TABLES, "Table ", VIEWS, "View ", INDEXES, "Index ");
-    private static final List<String> GROUPS = List.of(DOMAINS, GENERATORS, TABLES, VIEWS, INDEXES);
+            TABLES, "Table ", VIEWS, "View ", INDEXES, "Index ", PROCEDURES, "Procedure ", FUNCTIONS,
+            "Function ", PACKAGES, "Package ");
+    private static final List<String> GROUPS = List.of(DOMAINS, GENERATORS, TABLES, VIEWS, INDEXES,
+            PROCEDURES, FUNCTIONS, PACKAGES);
 
     private final Map<String, List<String>> available = new LinkedHashMap<>();
     private final Map<String, Set<String>> chosen = new LinkedHashMap<>();
@@ -43,9 +48,10 @@ final class ObjectsPage extends WizardPage {
     private Button computedBySeparate;
     private Button alwaysQuote;
     private Button createOrAlter;
+    private Button noSetTerm;
 
     ObjectsPage(List<String> domains, List<String> generators, List<String> tables, List<String> views,
-            List<String> indexes) {
+            List<String> indexes, List<String> procedures, List<String> functions, List<String> packages) {
         super("objects");
         setTitle("Objects");
         setDescription("Escolha os objetos a extrair.");
@@ -54,6 +60,9 @@ final class ObjectsPage extends WizardPage {
         available.put(TABLES, tables);
         available.put(VIEWS, views);
         available.put(INDEXES, indexes);
+        available.put(PROCEDURES, procedures);
+        available.put(FUNCTIONS, functions);
+        available.put(PACKAGES, packages);
         GROUPS.forEach(group -> chosen.put(group, new LinkedHashSet<>()));
     }
 
@@ -83,7 +92,8 @@ final class ObjectsPage extends WizardPage {
         alwaysCharacterSet = check(options, "CHARACTER SET / COLLATE em todas as colunas de texto");
         computedBySeparate = check(options, "COMPUTED BY separado do CREATE TABLE (ALTER TABLE ... ADD)");
         alwaysQuote = check(options, "Always quote identifiers");
-        createOrAlter = check(options, "CREATE OR ALTER para views");
+        createOrAlter = check(options, "CREATE OR ALTER para views, procedures e functions");
+        noSetTerm = check(options, "Não usar SET TERM (rotinas terminam em END;, o isql não roda)");
 
         Label hint = new Label(root, SWT.NONE);
         hint.setText("Selecione itens na árvore e use Add, ou Extract all para tudo.");
@@ -95,12 +105,15 @@ final class ObjectsPage extends WizardPage {
     /** Os objetos escolhidos; a página só fica completa com pelo menos um. */
     Selection selection() {
         return new Selection(Set.copyOf(chosen.get(DOMAINS)), Set.copyOf(chosen.get(GENERATORS)),
-                Set.copyOf(chosen.get(TABLES)), Set.copyOf(chosen.get(INDEXES)), Set.copyOf(chosen.get(VIEWS)));
+                Set.copyOf(chosen.get(TABLES)), Set.copyOf(chosen.get(INDEXES)), Set.copyOf(chosen.get(VIEWS)),
+                Set.copyOf(chosen.get(PROCEDURES)), Set.copyOf(chosen.get(FUNCTIONS)),
+                Set.copyOf(chosen.get(PACKAGES)));
     }
 
     ExtractionOptions options() {
         return new ExtractionOptions(createDatabase.getSelection(), alwaysCharacterSet.getSelection(),
-                computedBySeparate.getSelection(), alwaysQuote.getSelection(), createOrAlter.getSelection());
+                computedBySeparate.getSelection(), alwaysQuote.getSelection(), createOrAlter.getSelection(),
+                noSetTerm.getSelection());
     }
 
     private void fillTree(String group, List<String> names) {

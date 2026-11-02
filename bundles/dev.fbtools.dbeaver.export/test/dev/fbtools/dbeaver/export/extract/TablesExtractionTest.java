@@ -51,6 +51,7 @@ class TablesExtractionTest {
     @Test
     void syntheticTablesRoundTrip() throws Exception {
         ExportTestDatabase empty = ExportTestDatabase.create("tables-roundtrip", "UTF8");
+        empty.createSyntheticExceptions();
         empty.run(synthetic);
         assertEquals(synthetic, extract(empty, ExtractionOptions.DEFAULT));
     }

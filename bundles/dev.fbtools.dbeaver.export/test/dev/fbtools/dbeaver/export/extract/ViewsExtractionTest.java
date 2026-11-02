@@ -104,6 +104,7 @@ class ViewsExtractionTest {
         assertFalse(script.contains("CREATE VIEW "), script);
 
         ExportTestDatabase target = ExportTestDatabase.create("views-create-or-alter-copy", "UTF8");
+        target.createSyntheticExceptions();
         target.run(script);
         assertEquals(script, extract(target, options));
         // Sem a opção, o mesmo banco recriado volta ao CREATE VIEW.
@@ -111,12 +112,11 @@ class ViewsExtractionTest {
     }
 
     @Test
-    void viewsThatReadSelectableProceduresComeInTheirOwnBlockAndWarn() throws Exception {
-        String procedure = "CREATE PROCEDURE SP_NUMEROS RETURNS (N INTEGER) AS BEGIN N = 1; SUSPEND; N = 2; SUSPEND; END";
+    void viewsThatReadSelectableProceduresComeAfterTheEmptyHeadersWithoutWarning() throws Exception {
         ExportTestDatabase source = ExportTestDatabase.create("views-procedure", "UTF8");
         execute(source,
                 "CREATE TABLE BASE (ID INTEGER NOT NULL PRIMARY KEY)",
-                procedure,
+                "CREATE PROCEDURE SP_NUMEROS RETURNS (N INTEGER) AS BEGIN N = 1; SUSPEND; N = 2; SUSPEND; END",
                 "CREATE VIEW V_NUMEROS (N) AS SELECT N FROM SP_NUMEROS",
                 "CREATE VIEW V_SOBRE_NUMEROS (N) AS SELECT N FROM V_NUMEROS WHERE N > 1",
                 "CREATE VIEW V_SIMPLES (ID) AS SELECT ID FROM BASE");
@@ -127,16 +127,15 @@ class ViewsExtractionTest {
                 warnings.add(message);
             }
         });
-        int separate = script.indexOf("/* Views that read procedures */");
+        int separate = script.indexOf("/* Views that read routines */");
         assertTrue(separate > script.indexOf("CREATE VIEW V_SIMPLES"), script);
+        assertTrue(separate > script.indexOf("/* Routine headers */"), script);
         assertTrue(separate < script.indexOf("CREATE VIEW V_NUMEROS "), script);
         assertTrue(script.indexOf("CREATE VIEW V_NUMEROS ") < script.indexOf("CREATE VIEW V_SOBRE_NUMEROS "), script);
-        assertEquals(1, warnings.size(), warnings.toString());
-        assertTrue(warnings.get(0).contains("procedure SP_NUMEROS (view V_NUMEROS)"), warnings.get(0));
+        assertEquals(List.of(), warnings);
 
-        // As procedures só saem no issue 05: o banco de destino já as tem, e o resto do script roda sobre elas.
+        // Fecha o critério da issue 04: banco vazio, sem criar a procedure à mão.
         ExportTestDatabase target = ExportTestDatabase.create("views-procedure-copy", "UTF8");
-        execute(target, procedure);
         target.run(script);
         assertEquals(script, extract(target, ExtractionOptions.DEFAULT));
     }

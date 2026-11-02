@@ -9,6 +9,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -17,9 +18,11 @@ import java.util.stream.Collectors;
 
 /**
  * Gera o Script de metadata lendo {@code RDB$*} direto (ADR 0007). Nesta fatia: domínios, generators, tabelas, views,
- * índices e constraints, na ordem das Fases (domínios, generators com {@code SET GENERATOR}, tabelas com chaves
- * primárias e únicas, views em ordem topológica, depois colunas calculadas separadas, índices, checks e FKs). A
- * conexão deve usar o charset padrão do banco, para que colunas {@code NONE} cheguem byte a byte (ADR 0009).
+ * índices, constraints, procedures, functions e packages, na ordem das Fases (domínios, generators com
+ * {@code SET GENERATOR}, tabelas com chaves primárias e únicas, colunas calculadas separadas, views em ordem
+ * topológica, Cabeçalhos vazios de rotinas, índices, checks e FKs, e por fim os corpos das rotinas intercalados com as
+ * views que as leem). A conexão deve usar o charset padrão do banco, para que colunas {@code NONE} cheguem byte a
+ * byte (ADR 0009).
  */
 public final class MetadataExtractor {
 
@@ -76,6 +79,21 @@ public final class MetadataExtractor {
         return new ViewCatalog(connection).listViewNames();
     }
 
+    /** Nomes das procedures do usuário (fora de packages), para a aba Objects. */
+    public List<String> listProcedures() throws SQLException {
+        return new RoutineCatalog(connection).listProcedureNames();
+    }
+
+    /** Nomes das functions do usuário (fora de packages e sem as UDFs legadas), para a aba Objects. */
+    public List<String> listFunctions() throws SQLException {
+        return new RoutineCatalog(connection).listFunctionNames();
+    }
+
+    /** Nomes dos packages do usuário, para a aba Objects. */
+    public List<String> listPackages() throws SQLException {
+        return new RoutineCatalog(connection).listPackageNames();
+    }
+
     /** Como {@link #extract(Selection, ExtractionOptions, Writer, String, ExtractionProgress)} com as opções padrão. */
     public void extract(Selection selection, Writer out, String setNames, ExtractionProgress progress)
             throws SQLException, IOException {
@@ -99,8 +117,12 @@ public final class MetadataExtractor {
         warnIfConnectionCharsetDiffers(info, progress);
         warnAboutNoneColumns(info, domains, tables, progress);
         ViewCatalog.Views views = new ViewCatalog(connection).readViews(selection, progress);
-        warnAboutMissingDependencies(domains, tables, views, progress);
-        progress.begin(domains.size() + generators.size() + tables.size() + views.size() + indexes.size());
+        RoutineCatalog routineCatalog = new RoutineCatalog(connection);
+        RoutineCatalog.Routines routines = routineCatalog.readRoutines(selection, progress);
+        warnAboutMissingDependencies(domains, tables, views, routines, progress);
+        warnAboutRoutinesUsedByTables(routineCatalog.readTableUsers(), selection, progress);
+        progress.begin(domains.size() + generators.size() + tables.size() + views.size() + indexes.size()
+                + routines.size());
 
         out.write("SET SQL DIALECT 3;\n");
         out.write("SET NAMES " + (setNames != null ? setNames : info.defaultCharacterSet()) + ";\n");
@@ -133,8 +155,11 @@ public final class MetadataExtractor {
 
         writeTables(out, tables, options, info, progress);
         writeComputedColumns(out, tables, options);
-        writeViews(out, views, options, progress);
+        writeViewBlock(out, "Views", views.beforeRoutines(), options, progress);
+        writeRoutineHeaders(out, routines, options, info, progress);
         writeIndexesAndConstraints(out, tables, indexes, options, progress);
+        writeBodiesAndViewsOverRoutines(out, routines, views.afterRoutines(), routineCatalog.readViewReaders(),
+                options, info, progress);
         writeDescriptions(out, domains, generators, options);
         out.flush();
     }
@@ -163,15 +188,158 @@ public final class MetadataExtractor {
     }
 
     /**
-     * Fase de views: depois de todas as tabelas e em ordem topológica. As que leem procedure (direta ou por outra
-     * view) saem num bloco à parte, que a Fase de rotinas deve passar para depois dos Cabeçalhos vazios.
+     * Fases de rotinas, primeira parte: os Cabeçalhos vazios de packages (o header inteiro), functions e procedures.
+     * Saem depois das views que não leem rotina e antes das que leem, de índices e FKs e dos corpos, para que ciclos
+     * entre rotinas e views sobre procedures tenham onde se apoiar.
      */
-    private static void writeViews(Writer out, ViewCatalog.Views views, ExtractionOptions options,
-            ExtractionProgress progress) throws IOException {
-        writeViewBlock(out, "Views", views.beforeRoutines(), options, progress);
-        writeViewBlock(out, "Views that read procedures", views.afterRoutines(), options, progress);
+    private static void writeRoutineHeaders(Writer out, RoutineCatalog.Routines routines, ExtractionOptions options,
+            DatabaseInfo info, ExtractionProgress progress) throws IOException {
+        List<String> headers = new ArrayList<>();
+        for (RoutineCatalog.Package pack : routines.packages()) {
+            progress.checkCancelled();
+            headers.add(pack.header(options));
+            progress.extracted("Package " + pack.name());
+        }
+        for (RoutineCatalog.Function function : routines.functions()) {
+            progress.checkCancelled();
+            headers.add(function.emptyHeader(options, info.defaultCharacterSet()));
+            progress.extracted("Function " + function.name());
+        }
+        for (RoutineCatalog.Procedure procedure : routines.procedures()) {
+            progress.checkCancelled();
+            headers.add(procedure.emptyHeader(options, info.defaultCharacterSet()));
+            progress.extracted("Procedure " + procedure.name());
+        }
+        writeRoutineBlock(out, "Routine headers", headers, options);
     }
 
+    /** Um passo da segunda parte das Fases de rotinas: um corpo ou uma view que lê rotina, e o que vem antes dele. */
+    private record LateStep(String key, boolean view, String name, String sql, Set<String> after) {
+    }
+
+    /**
+     * Fases de rotinas, segunda parte, depois de índices e FKs: os corpos de packages, functions e procedures e as
+     * views que leem rotina, em ordem de dependência. A view precisa do corpo definitivo da rotina que lê, porque o
+     * Firebird recusa o {@code ALTER PROCEDURE} de uma procedure com view sobre view já criada; e o corpo que lê uma
+     * dessas views precisa dela pronta. Fora isso os corpos vêm primeiro, em ordem alfabética.
+     */
+    private static void writeBodiesAndViewsOverRoutines(Writer out, RoutineCatalog.Routines routines,
+            List<ViewCatalog.View> lateViews, Map<String, Set<String>> viewReaders, ExtractionOptions options,
+            DatabaseInfo info, ExtractionProgress progress) throws IOException {
+        Set<String> lateViewKeys = lateViews.stream().map(view -> "view " + view.name()).collect(Collectors.toSet());
+        Map<String, LateStep> steps = new LinkedHashMap<>();
+        for (RoutineCatalog.Package pack : routines.packages()) {
+            if (pack.bodySource() != null) {
+                addBody(steps, "package " + pack.name(), pack.name(), pack.body(options), viewReaders, lateViewKeys);
+            }
+        }
+        for (RoutineCatalog.Function function : routines.functions()) {
+            if (!function.external()) {
+                addBody(steps, "function " + function.name(), function.name(),
+                        function.body(options, info.defaultCharacterSet()), viewReaders, lateViewKeys);
+            }
+        }
+        for (RoutineCatalog.Procedure procedure : routines.procedures()) {
+            if (!procedure.external()) {
+                addBody(steps, "procedure " + procedure.name(), procedure.name(),
+                        procedure.body(options, info.defaultCharacterSet()), viewReaders, lateViewKeys);
+            }
+        }
+        for (ViewCatalog.View view : lateViews) {
+            Set<String> after = new LinkedHashSet<>(view.routines());
+            view.relations().forEach(relation -> after.add("view " + relation));
+            steps.put("view " + view.name(), new LateStep("view " + view.name(), true, view.name(),
+                    view.toSql(options), after));
+        }
+        List<LateStep> ordered = new ArrayList<>();
+        Set<String> visited = new HashSet<>();
+        for (LateStep step : steps.values()) {
+            visitStep(step, steps, visited, new HashSet<>(), ordered, progress);
+        }
+        // Passos seguidos do mesmo tipo saem num bloco só (um SET TERM para vários corpos).
+        for (int i = 0; i < ordered.size();) {
+            int end = i;
+            while (end < ordered.size() && ordered.get(end).view() == ordered.get(i).view()) {
+                end++;
+            }
+            List<LateStep> run = ordered.subList(i, end);
+            if (run.get(0).view()) {
+                out.write("\n/* Views that read routines */\n\n");
+                for (LateStep step : run) {
+                    progress.checkCancelled();
+                    out.write(step.sql() + "\n\n");
+                    progress.extracted("View " + step.name());
+                }
+            } else {
+                writeRoutineBlock(out, "Routine bodies", run.stream().map(LateStep::sql).toList(), options);
+            }
+            i = end;
+        }
+    }
+
+    private static void addBody(Map<String, LateStep> steps, String key, String name, String sql,
+            Map<String, Set<String>> viewReaders, Set<String> lateViewKeys) {
+        Set<String> after = new LinkedHashSet<>();
+        for (String view : viewReaders.getOrDefault(key, Set.of())) {
+            if (lateViewKeys.contains("view " + view)) {
+                after.add("view " + view);
+            }
+        }
+        steps.put(key, new LateStep(key, false, name, sql, after));
+    }
+
+    // Um ciclo entre corpo e view (rotina que lê view que lê a própria rotina) não tem ordem que o Firebird aceite
+    // (ADR 0011): quebra-se onde foi achado, o script falha nesse ponto e a extração avisa.
+    private static void visitStep(LateStep step, Map<String, LateStep> steps, Set<String> visited,
+            Set<String> inProgress, List<LateStep> ordered, ExtractionProgress progress) {
+        if (inProgress.contains(step.key())) {
+            progress.warn("Ciclo entre corpo de rotina e view que a lê, envolvendo " + step.key() + ": o Firebird não"
+                    + " aceita nenhuma ordem, e o script falha nesse ponto (ADR 0011).");
+            return;
+        }
+        if (!visited.add(step.key())) {
+            return;
+        }
+        inProgress.add(step.key());
+        for (String dependency : step.after()) {
+            LateStep before = steps.get(dependency);
+            if (before != null) {
+                visitStep(before, steps, visited, inProgress, ordered, progress);
+            }
+        }
+        inProgress.remove(step.key());
+        ordered.add(step);
+    }
+
+    /** Quebra de linha antes do terminador se a última linha tem comentário, que senão o engoliria. */
+    private static String terminatorSeparator(String statement) {
+        return statement.substring(statement.lastIndexOf('\n') + 1).contains("--") ? "\n" : "";
+    }
+
+    /**
+     * Statements de rotina cheios de {@code ;}: com {@code SET TERM} o bloco todo usa {@code ^} e volta ao {@code ;} no
+     * fim; sem ele, cada statement termina em {@code ;} logo depois do {@code END}.
+     */
+    private static void writeRoutineBlock(Writer out, String title, List<String> statements, ExtractionOptions options)
+            throws IOException {
+        if (statements.isEmpty()) {
+            return;
+        }
+        out.write("\n/* " + title + " */\n\n");
+        if (options.noSetTerm()) {
+            for (String statement : statements) {
+                out.write(statement + terminatorSeparator(statement) + ";\n\n");
+            }
+            return;
+        }
+        out.write("SET TERM ^ ;\n\n");
+        for (String statement : statements) {
+            out.write(statement + terminatorSeparator(statement) + "^\n\n");
+        }
+        out.write("SET TERM ; ^\n");
+    }
+
+    /** Fase de views: depois de todas as tabelas e em ordem topológica; as que leem rotina saem à parte. */
     private static void writeViewBlock(Writer out, String title, List<ViewCatalog.View> views,
             ExtractionOptions options, ExtractionProgress progress) throws IOException {
         if (views.isEmpty()) {
@@ -281,7 +449,11 @@ public final class MetadataExtractor {
      * já o tenha, e o usuário precisa saber.
      */
     private static void warnAboutMissingDependencies(List<Domain> domains, List<TableCatalog.Table> tables,
-            ViewCatalog.Views views, ExtractionProgress progress) {
+            ViewCatalog.Views views, RoutineCatalog.Routines routines, ExtractionProgress progress) {
+        Set<String> selectedRoutines = new HashSet<>();
+        routines.procedures().forEach(routine -> selectedRoutines.add("procedure " + routine.name()));
+        routines.functions().forEach(routine -> selectedRoutines.add("function " + routine.name()));
+        routines.packages().forEach(routine -> selectedRoutines.add("package " + routine.name()));
         Set<String> tableNames = tables.stream().map(TableCatalog.Table::name).collect(Collectors.toSet());
         Set<String> relationNames = new HashSet<>(tableNames);
         views.all().forEach(view -> relationNames.add(view.name()));
@@ -305,14 +477,33 @@ public final class MetadataExtractor {
                     missing.add("tabela ou view " + relation + " (view " + view.name() + ")");
                 }
             }
-            // As procedures ainda não saem no script (issue 05): a view que as lê só roda onde elas já existem.
-            for (String procedure : view.procedures()) {
-                missing.add("procedure " + procedure + " (view " + view.name() + ")");
+            for (String routine : view.routines()) {
+                if (!selectedRoutines.contains(routine)) {
+                    missing.add(routine + " (view " + view.name() + ")");
+                }
             }
         }
         if (!missing.isEmpty()) {
             progress.warn("O script usa objetos que não estão na seleção: " + String.join(", ", missing)
                     + ". Eles precisam existir no banco onde o script for executado.");
+        }
+    }
+
+    /**
+     * Colunas calculadas, índices de expressão e checks são criados com a tabela, antes de qualquer rotina: o script só
+     * roda num banco que já tenha a rotina que eles chamam.
+     */
+    private static void warnAboutRoutinesUsedByTables(List<RoutineCatalog.TableUser> users, Selection selection,
+            ExtractionProgress progress) {
+        Set<String> uses = new TreeSet<>();
+        for (RoutineCatalog.TableUser user : users) {
+            if (selection.includesTable(user.table())) {
+                uses.add(user.routine() + " (" + user.user() + ")");
+            }
+        }
+        if (!uses.isEmpty()) {
+            progress.warn("Objetos de tabela chamam rotinas, que só são criadas depois das tabelas: "
+                    + String.join(", ", uses) + ". O script só roda onde essas rotinas já existem.");
         }
     }
 

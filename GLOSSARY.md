@@ -72,7 +72,7 @@ Coluna cujo tipo tem dimensões, declaradas na própria coluna ou no domínio qu
 _Evitar_: "vetor", "campo array".
 
 **Fase**
-Bloco do Script de metadata que reúne um tipo de objeto (domínios, generators, tabelas, views, cabeçalhos de rotinas, índices e FKs, corpos, triggers, descrições, grants…). A ordem das Fases e a ordem topológica dentro delas vêm de `RDB$DEPENDENCIES` (ADR 0007).
+Bloco do Script de metadata que reúne um tipo de objeto (domínios, generators, tabelas, views, Cabeçalhos vazios, índices e FKs, corpos, triggers, descrições, grants…). A ordem das Fases e a ordem topológica dentro delas vêm de `RDB$DEPENDENCIES` (ADR 0007). A única Fase que mistura tipos é a dos corpos: as views que leem Rotina saem entre os corpos, cada uma depois das Rotinas que lê e antes das que a leem (ADR 0011).
 
 **Cabeçalho vazio**
 `CREATE PROCEDURE/FUNCTION/PACKAGE` só com a assinatura e corpo vazio, emitido numa Fase anterior à dos corpos. Resolve chamadas cíclicas entre rotinas.
