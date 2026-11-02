@@ -49,6 +49,7 @@ final class ObjectsPage extends WizardPage {
     private Button alwaysQuote;
     private Button createOrAlter;
     private Button noSetTerm;
+    private Button omitHeader;
 
     ObjectsPage(List<String> domains, List<String> generators, List<String> tables, List<String> views,
             List<String> indexes, List<String> procedures, List<String> functions, List<String> packages) {
@@ -93,7 +94,8 @@ final class ObjectsPage extends WizardPage {
         computedBySeparate = check(options, "COMPUTED BY separado do CREATE TABLE (ALTER TABLE ... ADD)");
         alwaysQuote = check(options, "Always quote identifiers");
         createOrAlter = check(options, "CREATE OR ALTER para views, procedures e functions");
-        noSetTerm = check(options, "Não usar SET TERM (rotinas terminam em END;, o isql não roda)");
+        noSetTerm = check(options, "Não usar SET TERM (rotinas terminam em END;, nem o isql nem o DBeaver rodam)");
+        omitHeader = check(options, "Sem cabeçalho SET SQL DIALECT / SET NAMES (o DBeaver não os executa)");
 
         Label hint = new Label(root, SWT.NONE);
         hint.setText("Selecione itens na árvore e use Add, ou Extract all para tudo.");
@@ -113,7 +115,7 @@ final class ObjectsPage extends WizardPage {
     ExtractionOptions options() {
         return new ExtractionOptions(createDatabase.getSelection(), alwaysCharacterSet.getSelection(),
                 computedBySeparate.getSelection(), alwaysQuote.getSelection(), createOrAlter.getSelection(),
-                noSetTerm.getSelection());
+                noSetTerm.getSelection(), omitHeader.getSelection());
     }
 
     private void fillTree(String group, List<String> names) {
