@@ -83,6 +83,18 @@ public final class ExportTestDatabase {
         }
     }
 
+    /**
+     * As exceptions do banco sintético, que o corpo de {@code SP_FECHAR_PEDIDO} usa. Elas só saem no script no issue 06;
+     * até lá, um banco de destino que receba o script do sintético precisa delas antes. Remover quando o 06 chegar.
+     */
+    public void createSyntheticExceptions() throws SQLException {
+        try (Connection connection = connect(); Statement statement = connection.createStatement()) {
+            statement.execute("CREATE EXCEPTION E_ESTOQUE_INSUFICIENTE 'Estoque insuficiente para o produto'");
+            statement.execute("CREATE EXCEPTION E_PEDIDO_FECHADO 'Pedido ja esta fechado'");
+            statement.execute("CREATE EXCEPTION E_CLIENTE_BLOQUEADO 'Cliente bloqueado: nao pode comprar'");
+        }
+    }
+
     /** O banco sintético da Exportação (script em {@code samples/export-db}) num banco UTF8 novo. */
     public static ExportTestDatabase syntheticDatabase(String name) throws Exception {
         ExportTestDatabase database = create(name, "UTF8");

@@ -37,3 +37,7 @@ Pendências: verificação manual da aba Objects no DBeaver (Views e o checkbox 
 - **Critério 3 marcado como parcial (decisão do usuário):** a parte "view sobre procedure selecionável é tratada" só fica completa na issue 05 (view depois do Cabeçalho vazio, sem aviso). Hoje há o bloco à parte e o aviso, e a ida e volta desse caso só passa com a procedure criada à mão no destino. O trecho sobre ciclo entre views não exige nada.
 - O critério 1 cobre só as 3 views do Banco sintético (cadeia e view sobre procedure não estão na Referência; ver o comentário anterior).
 - Limitações conhecidas: com seleção parcial (só `V2`, que lê `V1`, que lê procedure), `V2` fica no bloco normal e o aviso cita `V1`, não a procedure; dependência de function PSQL/UDF não é lida (issue 05 deve avaliar).
+
+### Fechamento do critério 3 (agente, 2026-11-01, issue 05)
+
+A view sobre procedure agora sai depois do Cabeçalho vazio, sem aviso, e o script roda num banco vazio (teste `viewsThatReadSelectableProceduresComeAfterTheEmptyHeadersWithoutWarning`). O bloco ficou depois de índices e FKs, intercalado com os corpos, e não logo depois dos Cabeçalhos; ver Comments da 05.

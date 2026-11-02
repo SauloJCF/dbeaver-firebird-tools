@@ -2,6 +2,8 @@
 
 Status: aceito — 2026-10-28
 
+> Nota (2026-11-02): a ordem entre views, Cabeçalhos vazios e corpos foi revista na ADR 0011. As views que leem Rotina saem intercaladas com os corpos, e não antes dos Cabeçalhos vazios. O resto da lista de Fases abaixo não muda.
+
 ## Contexto
 
 O plugin de exportação gera um script de metadata do banco inteiro (e um de dados) no estilo do IBExpert, com os objetos do Firebird 5. O DBeaver tem modelo de metadados e geradores de DDL para o driver de Firebird, mas cobrem pouco do Firebird 5 (packages, identity, publications, mappings, `DECFLOAT`, `INT128`…) e não dão controle sobre ordem de dependência, `SET TERM`, cabeçalhos vazios de rotinas e formatação.
