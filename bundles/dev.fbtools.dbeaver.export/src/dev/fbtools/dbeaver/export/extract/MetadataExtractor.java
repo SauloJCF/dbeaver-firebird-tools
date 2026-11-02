@@ -124,8 +124,10 @@ public final class MetadataExtractor {
         progress.begin(domains.size() + generators.size() + tables.size() + views.size() + indexes.size()
                 + routines.size());
 
-        out.write("SET SQL DIALECT 3;\n");
-        out.write("SET NAMES " + (setNames != null ? setNames : info.defaultCharacterSet()) + ";\n");
+        if (!options.omitHeader()) {
+            out.write("SET SQL DIALECT 3;\n");
+            out.write("SET NAMES " + (setNames != null ? setNames : info.defaultCharacterSet()) + ";\n");
+        }
         if (options.createDatabase()) {
             out.write("\n" + createDatabase(info) + "\n");
         }

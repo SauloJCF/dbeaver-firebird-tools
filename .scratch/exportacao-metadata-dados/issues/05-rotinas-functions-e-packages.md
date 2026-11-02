@@ -19,7 +19,9 @@ Blocked by: 03
 - [x] Ida e volta verde para procedures, functions, packages e o caso cíclico.
 - [x] Fecha o critério 3 da 04: a view sobre procedure selecionável (e a que lê essa view) sai depois do Cabeçalho vazio e o script gerado roda num banco vazio, sem aviso e sem criar a procedure à mão.
 - [x] O corpo extraído é exatamente a Fonte do banco, sem normalização.
-- [ ] Com `SET TERM`, o script roda no `isql` (verificado). Sem `SET TERM`, cada rotina termina em `END;` e o script roda no DBeaver contra um banco vazio (passo humano, ainda não verificado).
+- [x] Com `SET TERM`, o script roda no `isql` (verificado).
+- [x] Sem `SET TERM`, cada rotina termina em `END;`, e a opção avisa que nem o `isql` nem o DBeaver executam esse formato (verificado no DBeaver 26.2.2 em 2026-11-02: ver Comments).
+- [x] Opção para omitir o cabeçalho `SET SQL DIALECT` / `SET NAMES`, que o DBeaver recusa.
 
 ## Dependência humana
 
@@ -58,3 +60,12 @@ Blocked by: 03
 - Ciclo corpo↔view agora gera aviso (`visitStep`), com teste; Javadoc do `ViewCatalog` alinhado. `.\mvnw -o verify`: BUILD SUCCESS, 231 + 62 testes.
 - Segue aberto: B2 (critério do `SET TERM` e verificação do `END;` no DBeaver).
 - B2: critério do `SET TERM` reescrito com o usuário (2026-11-02): `isql` com `SET TERM` já verificado; a metade sem `SET TERM` depende de rodar o script no DBeaver (passo humano) e fica `- [ ]` até lá. ADR 0011 aceita.
+
+### Teste manual no DBeaver 26.2.2 (agente, com agent-desktop, 2026-11-02)
+
+- Script gerado do EXPORT.FDB pelo wizard (aba Objects mostra Procedures, Functions e Packages e o checkbox) com "Não usar SET TERM", executado com Alt+X no VAZIO.FDB (vazio, só com a exception `E_PEDIDO_FECHADO` criada à mão).
+- Tabelas, views, índices, FKs e os cabeçalhos vazios das procedures foram criados sem erro.
+- **O DBeaver não executa o cabeçalho:** `SET SQL DIALECT 3;` e `SET NAMES UTF8;` dão `Token unknown` (são comandos do `isql`).
+- **O DBeaver não executa o formato `END;`:** corta a rotina no primeiro `;` interno. O `ALTER PROCEDURE SP_FECHAR_PEDIDO` quebrou no `;` do `DECLARE VARIABLE` ("Unexpected end of command - line 6, column 38"), e o `BEGIN … END` seguinte virou instrução solta com `:ID_PEDIDO`, `:V_STATUS`, `:V_TOTAL` pedidos como parâmetros de bind. Cancelado na janela de bind; as outras duas procedures também têm `;` interno e não foram observadas. As três ficaram com o corpo vazio no banco.
+- **Decisão do usuário (2026-11-02):** o formato sem `SET TERM` não roda em nenhum cliente testado (`isql` e DBeaver); a opção continua, com o rótulo e o Javadoc corrigidos, e o cabeçalho passa a ser opcional (`ExtractionOptions.omitHeader`, checkbox "Sem cabeçalho SET SQL DIALECT / SET NAMES"). Teste novo `omitHeaderDropsSetSqlDialectAndSetNamesOnly`.
+- Para rodar no DBeaver hoje: usar o script com `SET TERM` e sem o cabeçalho. Não verificado: se o DBeaver executa `SET TERM ^ ;` (ele tem o comando `@delimiter`); fica para uma próxima verificação.

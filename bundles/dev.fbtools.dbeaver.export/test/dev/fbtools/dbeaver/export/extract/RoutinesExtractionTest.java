@@ -306,6 +306,19 @@ class RoutinesExtractionTest {
     }
 
     @Test
+    void omitHeaderDropsSetSqlDialectAndSetNamesOnly() throws Exception {
+        ExportTestDatabase source = ExportTestDatabase.create("routines-omit-header", "UTF8");
+        execute(source, "CREATE PROCEDURE SP_X AS BEGIN EXIT; END");
+        String withHeader = extract(source, ExtractionOptions.DEFAULT);
+        assertTrue(withHeader.startsWith("SET SQL DIALECT 3;\nSET NAMES UTF8;\n"), withHeader);
+
+        String script = extract(source, new ExtractionOptions(false, false, false, false, false, false, true));
+        assertFalse(script.contains("SET SQL DIALECT"), script);
+        assertFalse(script.contains("SET NAMES"), script);
+        assertEquals(withHeader.substring("SET SQL DIALECT 3;\nSET NAMES UTF8;\n".length()), script);
+    }
+
+    @Test
     void tableObjectsThatCallRoutinesWarn() throws Exception {
         ExportTestDatabase source = ExportTestDatabase.create("routines-table-users", "UTF8");
         execute(source,
