@@ -55,7 +55,6 @@ class RoutinesExtractionTest {
         assertTrue(synthetic.indexOf("/* Routine headers */") < synthetic.indexOf("/* Indices */"), synthetic);
         assertTrue(synthetic.indexOf("/* Indices */") < synthetic.indexOf("/* Routine bodies */"), synthetic);
         ExportTestDatabase empty = ExportTestDatabase.create("routines-roundtrip", "UTF8");
-        empty.createSyntheticExceptions();
         empty.run(synthetic);
         assertEquals(synthetic, extract(empty, ExtractionOptions.DEFAULT));
     }
@@ -300,7 +299,6 @@ class RoutinesExtractionTest {
 
         // Para provar que roda: o mesmo texto, com cada bloco de rotinas entre SET TERM, executado num banco vazio.
         ExportTestDatabase target = ExportTestDatabase.create("routines-no-set-term-copy", "UTF8");
-        target.createSyntheticExceptions();
         target.run(withSetTermAroundRoutines(script));
         assertEquals(synthetic, extract(target, ExtractionOptions.DEFAULT));
     }
@@ -363,7 +361,7 @@ class RoutinesExtractionTest {
 
     /** Envolve cada bloco de rotinas (sem {@code SET TERM}) em {@code SET TERM}, que é o que o {@code run} entende. */
     private static String withSetTermAroundRoutines(String script) {
-        Matcher block = Pattern.compile("(?s)(/\\* Routine (?:headers|bodies) \\*/\\n\\n)(.*?)(?=\\n/\\* |\\z)")
+        Matcher block = Pattern.compile("(?s)(/\\* (?:Routine headers|Routine bodies|Triggers) \\*/\\n\\n)(.*?)(?=\\n/\\* |\\z)")
                 .matcher(script);
         StringBuilder result = new StringBuilder();
         while (block.find()) {

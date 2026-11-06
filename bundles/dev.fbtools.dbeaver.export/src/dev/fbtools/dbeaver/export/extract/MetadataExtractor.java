@@ -17,12 +17,11 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
- * Gera o Script de metadata lendo {@code RDB$*} direto (ADR 0007). Nesta fatia: domínios, generators, tabelas, views,
- * índices, constraints, procedures, functions e packages, na ordem das Fases (domínios, generators com
- * {@code SET GENERATOR}, tabelas com chaves primárias e únicas, colunas calculadas separadas, views em ordem
- * topológica, Cabeçalhos vazios de rotinas, índices, checks e FKs, e por fim os corpos das rotinas intercalados com as
- * views que as leem). A conexão deve usar o charset padrão do banco, para que colunas {@code NONE} cheguem byte a
- * byte (ADR 0009).
+ * Gera o Script de metadata lendo {@code RDB$*} direto (ADR 0007), na ordem das Fases: collations, BLOB filters e
+ * UDFs, domínios, generators, exceptions, roles e mappings, tabelas com chaves primárias e únicas, colunas calculadas
+ * separadas, views em ordem topológica, Cabeçalhos vazios de rotinas, índices, checks e FKs, os corpos das rotinas
+ * intercalados com as views que as leem, triggers, {@code SET GENERATOR}, a publication padrão e as descrições. A
+ * conexão deve usar o charset padrão do banco, para que colunas {@code NONE} cheguem byte a byte (ADR 0009).
  */
 public final class MetadataExtractor {
 
@@ -40,8 +39,8 @@ public final class MetadataExtractor {
 
     // Generators de identity (RDB$SYSTEM_FLAG = 6) e de sistema pertencem à tabela ou ao servidor, não ao script.
     private static final String GENERATORS = """
-            SELECT RDB$GENERATOR_NAME, RDB$DESCRIPTION FROM RDB$GENERATORS
-             WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY RDB$GENERATOR_NAME""";
+            SELECT RDB$GENERATOR_NAME, RDB$DESCRIPTION, RDB$INITIAL_VALUE, RDB$GENERATOR_INCREMENT
+              FROM RDB$GENERATORS WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY RDB$GENERATOR_NAME""";
 
     private final Connection connection;
 
@@ -94,6 +93,46 @@ public final class MetadataExtractor {
         return new RoutineCatalog(connection).listPackageNames();
     }
 
+    /** Nomes das exceptions do usuário, para a aba Objects. */
+    public List<String> listExceptions() throws SQLException {
+        return new ObjectCatalog(connection).listExceptionNames();
+    }
+
+    /** Nomes das UDFs (functions legadas) do usuário, para a aba Objects. */
+    public List<String> listUdfs() throws SQLException {
+        return new ObjectCatalog(connection).listUdfNames();
+    }
+
+    /** Nomes das collations do usuário, para a aba Objects. */
+    public List<String> listCollations() throws SQLException {
+        return new ObjectCatalog(connection).listCollationNames();
+    }
+
+    /** Nomes dos BLOB filters do usuário, para a aba Objects. */
+    public List<String> listFilters() throws SQLException {
+        return new ObjectCatalog(connection).listFilterNames();
+    }
+
+    /** Nomes das roles do usuário, para a aba Objects. */
+    public List<String> listRoles() throws SQLException {
+        return new ObjectCatalog(connection).listRoleNames();
+    }
+
+    /** Nomes dos triggers do usuário (sem os das constraints), para a aba Objects. */
+    public List<String> listTriggers() throws SQLException {
+        return new TriggerCatalog(connection).listTriggerNames();
+    }
+
+    /** A publication padrão, se o banco a usa (ligada, com tabelas ou inclusão automática), para a aba Objects. */
+    public List<String> listPublications() {
+        return new ObjectCatalog(connection).listPublicationNames();
+    }
+
+    /** Nomes dos mappings locais, para a aba Objects. */
+    public List<String> listMappings() {
+        return new ObjectCatalog(connection).listMappingNames();
+    }
+
     /** Como {@link #extract(Selection, ExtractionOptions, Writer, String, ExtractionProgress)} com as opções padrão. */
     public void extract(Selection selection, Writer out, String setNames, ExtractionProgress progress)
             throws SQLException, IOException {
@@ -111,7 +150,17 @@ public final class MetadataExtractor {
         DatabaseInfo info = DatabaseInfo.read(connection);
         TableCatalog catalog = new TableCatalog(connection);
         List<Domain> domains = readDomains(selection, progress);
-        Map<String, String> generators = readGenerators(selection);
+        Map<String, Generator> generators = readGenerators(selection);
+        ObjectCatalog objects = new ObjectCatalog(connection);
+        List<ObjectCatalog.Collation> collations = objects.readCollations(selection);
+        List<ObjectCatalog.BlobFilter> filters = objects.readFilters(selection);
+        List<ObjectCatalog.Udf> udfs = objects.readUdfs(selection);
+        List<ObjectCatalog.ExceptionDef> exceptions = objects.readExceptions(selection);
+        List<ObjectCatalog.Role> roles = objects.readRoles(selection);
+        List<ObjectCatalog.Mapping> mappings = objects.readMappings(selection);
+        List<TriggerCatalog.Trigger> triggers = new TriggerCatalog(connection).readTriggers(selection, progress);
+        ObjectCatalog.Publication publication = selection.includesPublication(ObjectCatalog.DEFAULT_PUBLICATION)
+                ? objects.readPublication() : null;
         List<TableCatalog.Table> tables = catalog.readTables(selection, progress);
         List<TableCatalog.Index> indexes = catalog.readIndexes(selection, progress);
         warnIfConnectionCharsetDiffers(info, progress);
@@ -122,7 +171,8 @@ public final class MetadataExtractor {
         warnAboutMissingDependencies(domains, tables, views, routines, progress);
         warnAboutRoutinesUsedByTables(routineCatalog.readTableUsers(), selection, progress);
         progress.begin(domains.size() + generators.size() + tables.size() + views.size() + indexes.size()
-                + routines.size());
+                + routines.size() + collations.size() + filters.size() + udfs.size() + exceptions.size()
+                + roles.size() + mappings.size() + triggers.size());
 
         if (!options.omitHeader()) {
             out.write("SET SQL DIALECT 3;\n");
@@ -131,6 +181,14 @@ public final class MetadataExtractor {
         if (options.createDatabase()) {
             out.write("\n" + createDatabase(info) + "\n");
         }
+
+        // Collations, filters e UDFs antes dos domínios, que podem usar uma collation; as UDFs, das colunas calculadas.
+        writeObjects(out, "Collations", collations, ObjectCatalog.Collation::name, "Collation ",
+                collation -> collation.toSql(options), progress);
+        writeObjects(out, "BLOB filters", filters, ObjectCatalog.BlobFilter::name, "BLOB filter ",
+                filter -> filter.toSql(options), progress);
+        writeObjects(out, "UDFs", udfs, ObjectCatalog.Udf::name, "UDF ",
+                udf -> udf.toSql(options, info.defaultCharacterSet()), progress);
 
         if (!domains.isEmpty()) {
             out.write("\n/* Domains */\n\n");
@@ -145,15 +203,21 @@ public final class MetadataExtractor {
         if (!generators.isEmpty()) {
             out.write("\n/* Generators */\n\n");
         }
+        List<String> setGenerators = new ArrayList<>();
         try (Statement statement = connection.createStatement()) {
-            for (String generator : generators.keySet()) {
+            for (Map.Entry<String, Generator> generator : generators.entrySet()) {
                 progress.checkCancelled();
-                String quoted = options.quote(generator);
-                out.write("CREATE GENERATOR " + quoted + ";\n");
-                out.write("SET GENERATOR " + quoted + " TO " + currentValue(statement, generator) + ";\n");
-                progress.extracted("Generator " + generator);
+                out.write(generator.getValue().toSql(options.quote(generator.getKey()), options) + "\n");
+                setGenerators.add("SET GENERATOR " + options.quote(generator.getKey()) + " TO "
+                        + currentValue(statement, generator.getKey()) + ";");
+                progress.extracted("Generator " + generator.getKey());
             }
         }
+
+        writeObjects(out, "Exceptions", exceptions, ObjectCatalog.ExceptionDef::name, "Exception ",
+                exception -> exception.toSql(options), progress);
+        writeObjects(out, "Roles", roles, ObjectCatalog.Role::name, "Role ", role -> role.toSql(options), progress);
+        writeMappings(out, mappings, options, progress);
 
         writeTables(out, tables, options, info, progress);
         writeComputedColumns(out, tables, options);
@@ -162,8 +226,85 @@ public final class MetadataExtractor {
         writeIndexesAndConstraints(out, tables, indexes, options, progress);
         writeBodiesAndViewsOverRoutines(out, routines, views.afterRoutines(), routineCatalog.readViewReaders(),
                 options, info, progress);
+        writeTriggers(out, triggers, options, progress);
+        writeBlock(out, "Set generators", setGenerators);
+        writePublication(out, publication, tables, options);
         writeDescriptions(out, domains, generators, options);
         out.flush();
+    }
+
+    /** Um bloco de objetos simples: um statement por objeto, sem ordem entre eles além da alfabética. */
+    private static <T> void writeObjects(Writer out, String title, List<T> items,
+            java.util.function.Function<T, String> name, String label, java.util.function.Function<T, String> sql,
+            ExtractionProgress progress) throws IOException {
+        if (items.isEmpty()) {
+            return;
+        }
+        out.write("\n/* " + title + " */\n\n");
+        for (T item : items) {
+            progress.checkCancelled();
+            out.write(sql.apply(item) + "\n");
+            progress.extracted(label + name.apply(item));
+        }
+    }
+
+    /** Mappings depois das roles, que eles podem apontar; um modo de autenticação desconhecido é avisado e pulado. */
+    private static void writeMappings(Writer out, List<ObjectCatalog.Mapping> mappings, ExtractionOptions options,
+            ExtractionProgress progress) throws IOException {
+        List<ObjectCatalog.Mapping> known = new ArrayList<>();
+        for (ObjectCatalog.Mapping mapping : mappings) {
+            if (mapping.toSql(options) == null) {
+                progress.warn("O mapping " + mapping.name() + " usa o modo de autenticação '" + mapping.using()
+                        + "', que a extração não conhece; ele não saiu no script.");
+            } else {
+                known.add(mapping);
+            }
+        }
+        writeObjects(out, "Mappings", known, ObjectCatalog.Mapping::name, "Mapping ",
+                mapping -> mapping.toSql(options), progress);
+    }
+
+    /**
+     * Triggers depois do último corpo e da última view que lê rotina (ADR 0011): eles leem views e chamam rotinas, e o
+     * Firebird confere isso ao criar.
+     */
+    private static void writeTriggers(Writer out, List<TriggerCatalog.Trigger> triggers, ExtractionOptions options,
+            ExtractionProgress progress) throws IOException {
+        List<String> statements = new ArrayList<>();
+        for (TriggerCatalog.Trigger trigger : triggers) {
+            progress.checkCancelled();
+            statements.add(trigger.toSql(options));
+            progress.extracted("Trigger " + trigger.name());
+        }
+        writeRoutineBlock(out, "Triggers", statements, options);
+    }
+
+    /**
+     * A publication padrão (o Firebird 5 não tem outra): inclusão automática, tabelas e se está ligada. Depois das
+     * tabelas, que ela referencia; só as tabelas da seleção entram.
+     */
+    private static void writePublication(Writer out, ObjectCatalog.Publication publication,
+            List<TableCatalog.Table> tables, ExtractionOptions options) throws IOException {
+        if (publication == null || !publication.configured()) {
+            return;
+        }
+        List<String> statements = new ArrayList<>();
+        List<String> included = tables.stream().map(TableCatalog.Table::name)
+                .filter(publication.tables()::contains).map(options::quote).toList();
+        if (publication.autoEnable()) {
+            statements.add("ALTER DATABASE INCLUDE ALL TO PUBLICATION;");
+            List<String> excluded = tables.stream().map(TableCatalog.Table::name)
+                    .filter(table -> !publication.tables().contains(table)).map(options::quote).toList();
+            if (!excluded.isEmpty()) {
+                statements.add("ALTER DATABASE EXCLUDE TABLE " + String.join(", ", excluded) + " FROM PUBLICATION;");
+            }
+        } else if (!included.isEmpty()) {
+            statements.add("ALTER DATABASE INCLUDE TABLE " + String.join(", ", included) + " TO PUBLICATION;");
+        }
+        if (publication.active()) {
+            statements.add("ALTER DATABASE ENABLE PUBLICATION;");
+        }
+        writeBlock(out, "Publication", statements);
     }
 
     /** Fase de tabelas: sem FKs nem checks, só chaves primárias e únicas, que as FKs precisam já existir. */
@@ -535,7 +676,7 @@ public final class MetadataExtractor {
         }
     }
 
-    private static void writeDescriptions(Writer out, List<Domain> domains, Map<String, String> generators,
+    private static void writeDescriptions(Writer out, List<Domain> domains, Map<String, Generator> generators,
             ExtractionOptions options) throws IOException {
         boolean header = false;
         for (Domain domain : domains) {
@@ -544,10 +685,10 @@ public final class MetadataExtractor {
                 out.write(comment("DOMAIN", domain.name(), domain.description(), options));
             }
         }
-        for (Map.Entry<String, String> generator : generators.entrySet()) {
-            if (generator.getValue() != null) {
+        for (Map.Entry<String, Generator> generator : generators.entrySet()) {
+            if (generator.getValue().description() != null) {
                 header = descriptionsHeader(out, header);
-                out.write(comment("GENERATOR", generator.getKey(), generator.getValue(), options));
+                out.write(comment("GENERATOR", generator.getKey(), generator.getValue().description(), options));
             }
         }
     }
@@ -586,17 +727,35 @@ public final class MetadataExtractor {
         return domains;
     }
 
-    private Map<String, String> readGenerators(Selection selection) throws SQLException {
-        Map<String, String> generators = new LinkedHashMap<>();
+    private Map<String, Generator> readGenerators(Selection selection) throws SQLException {
+        Map<String, Generator> generators = new LinkedHashMap<>();
         try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(GENERATORS)) {
             while (rs.next()) {
                 String name = rs.getString(1).strip();
                 if (selection.includesGenerator(name)) {
-                    generators.put(name, Rdb.source(rs.getString(2)));
+                    generators.put(name, new Generator(Rdb.source(rs.getString(2)), Rdb.nullableLong(rs, "RDB$INITIAL_VALUE"),
+                            Rdb.nullableLong(rs, "RDB$GENERATOR_INCREMENT")));
                 }
             }
         }
         return generators;
+    }
+
+    /**
+     * Um generator. {@code initial} e {@code increment} são os do {@code START WITH} e {@code INCREMENT BY} (o padrão do
+     * Firebird 5 é 1 e 1); fora do padrão, ou com a opção, sai como {@code SEQUENCE}.
+     */
+    private record Generator(String description, Long initial, Long increment) {
+
+        String toSql(String quotedName, ExtractionOptions options) {
+            boolean start = initial != null && initial != 1;
+            boolean step = increment != null && increment != 1;
+            if (!options.useSequence() && !start && !step) {
+                return "CREATE GENERATOR " + quotedName + ";";
+            }
+            return "CREATE SEQUENCE " + quotedName + (start ? " START WITH " + initial : "")
+                    + (step ? " INCREMENT BY " + increment : "") + ";";
+        }
     }
 
     private static long currentValue(Statement statement, String generator) throws SQLException {

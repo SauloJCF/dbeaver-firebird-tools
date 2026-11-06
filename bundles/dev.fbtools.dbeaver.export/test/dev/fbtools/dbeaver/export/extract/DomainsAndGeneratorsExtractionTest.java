@@ -69,7 +69,6 @@ class DomainsAndGeneratorsExtractionTest {
     @Test
     void roundTripGivesTheSameScript() throws Exception {
         ExportTestDatabase empty = ExportTestDatabase.create("roundtrip", "UTF8");
-        empty.createSyntheticExceptions();
         empty.run(script);
         assertEquals(script, extract(empty));
     }
@@ -78,7 +77,6 @@ class DomainsAndGeneratorsExtractionTest {
     void scriptRunsInIsqlOnAnEmptyDatabase(@TempDir Path temp) throws Exception {
         Assumptions.assumeTrue(Files.isExecutable(Path.of(ISQL)), "isql do Firebird 5 não encontrado");
         ExportTestDatabase empty = ExportTestDatabase.create("isql", "UTF8");
-        empty.createSyntheticExceptions();
         Path file = temp.resolve("script.sql");
         Files.writeString(file, script, StandardCharsets.UTF_8);
         Path wrapper = temp.resolve("run.sql");

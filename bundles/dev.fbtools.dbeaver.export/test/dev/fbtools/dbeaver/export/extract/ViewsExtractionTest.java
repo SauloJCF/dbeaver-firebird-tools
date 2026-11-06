@@ -104,7 +104,6 @@ class ViewsExtractionTest {
         assertFalse(script.contains("CREATE VIEW "), script);
 
         ExportTestDatabase target = ExportTestDatabase.create("views-create-or-alter-copy", "UTF8");
-        target.createSyntheticExceptions();
         target.run(script);
         assertEquals(script, extract(target, options));
         // Sem a opção, o mesmo banco recriado volta ao CREATE VIEW.
