@@ -2,7 +2,9 @@ package dev.fbtools.dbeaver.export.ui;
 
 import java.lang.reflect.InvocationTargetException;
 import java.sql.SQLException;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
@@ -32,10 +34,9 @@ public final class ExtractMetadataHandler extends AbstractHandler {
             return null;
         }
         Shell shell = HandlerUtil.getActiveShell(event);
-        List<String>[] catalog = loadCatalog(shell, container);
+        Map<String, List<String>> catalog = loadCatalog(shell, container);
         if (catalog != null) {
-            new WizardDialog(shell, new ExtractMetadataWizard(container, catalog[0], catalog[1], catalog[2],
-                    catalog[3], catalog[4], catalog[5], catalog[6], catalog[7])).open();
+            new WizardDialog(shell, new ExtractMetadataWizard(container, catalog)).open();
         }
         return null;
     }
@@ -50,12 +51,10 @@ public final class ExtractMetadataHandler extends AbstractHandler {
     }
 
     /**
-     * @return {domínios, generators, tabelas, views, índices, procedures, functions, packages}, ou {@code null} se
-     *         falhou (o erro já foi mostrado)
+     * @return os nomes dos objetos por grupo da aba Objects, ou {@code null} se falhou (o erro já foi mostrado)
      */
-    @SuppressWarnings("unchecked")
-    private static List<String>[] loadCatalog(Shell shell, DBPDataSourceContainer container) {
-        List<String>[] catalog = new List[8];
+    private static Map<String, List<String>> loadCatalog(Shell shell, DBPDataSourceContainer container) {
+        Map<String, List<String>> catalog = new LinkedHashMap<>();
         try {
             UIUtils.runInProgressDialog(monitor -> {
                 monitor.beginTask("Lendo os objetos de " + container.getName(), 1);
@@ -63,14 +62,22 @@ public final class ExtractMetadataHandler extends AbstractHandler {
                 try {
                     context = FirebirdConnections.open(monitor, container);
                     MetadataExtractor extractor = new MetadataExtractor(FirebirdConnections.jdbc(monitor, context));
-                    catalog[0] = extractor.listDomains();
-                    catalog[1] = extractor.listGenerators();
-                    catalog[2] = extractor.listTables();
-                    catalog[3] = extractor.listViews();
-                    catalog[4] = extractor.listIndexes();
-                    catalog[5] = extractor.listProcedures();
-                    catalog[6] = extractor.listFunctions();
-                    catalog[7] = extractor.listPackages();
+                    catalog.put(ObjectsPage.DOMAINS, extractor.listDomains());
+                    catalog.put(ObjectsPage.GENERATORS, extractor.listGenerators());
+                    catalog.put(ObjectsPage.EXCEPTIONS, extractor.listExceptions());
+                    catalog.put(ObjectsPage.ROLES, extractor.listRoles());
+                    catalog.put(ObjectsPage.COLLATIONS, extractor.listCollations());
+                    catalog.put(ObjectsPage.FILTERS, extractor.listFilters());
+                    catalog.put(ObjectsPage.UDFS, extractor.listUdfs());
+                    catalog.put(ObjectsPage.TABLES, extractor.listTables());
+                    catalog.put(ObjectsPage.VIEWS, extractor.listViews());
+                    catalog.put(ObjectsPage.INDEXES, extractor.listIndexes());
+                    catalog.put(ObjectsPage.PROCEDURES, extractor.listProcedures());
+                    catalog.put(ObjectsPage.FUNCTIONS, extractor.listFunctions());
+                    catalog.put(ObjectsPage.PACKAGES, extractor.listPackages());
+                    catalog.put(ObjectsPage.TRIGGERS, extractor.listTriggers());
+                    catalog.put(ObjectsPage.PUBLICATIONS, extractor.listPublications());
+                    catalog.put(ObjectsPage.MAPPINGS, extractor.listMappings());
                 } catch (DBException | SQLException e) {
                     throw new InvocationTargetException(e);
                 } finally {

@@ -1,6 +1,7 @@
 package dev.fbtools.dbeaver.export.ui;
 
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.jface.wizard.Wizard;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
@@ -12,12 +13,9 @@ final class ExtractMetadataWizard extends Wizard {
     private final ObjectsPage objects;
     private final OutputPage output;
 
-    ExtractMetadataWizard(DBPDataSourceContainer container, List<String> domains, List<String> generators,
-            List<String> tables, List<String> views, List<String> indexes, List<String> procedures,
-            List<String> functions, List<String> packages) {
+    ExtractMetadataWizard(DBPDataSourceContainer container, Map<String, List<String>> available) {
         this.container = container;
-        this.objects = new ObjectsPage(domains, generators, tables, views, indexes, procedures, functions,
-                packages);
+        this.objects = new ObjectsPage(available);
         this.output = new OutputPage(container.getName());
         setWindowTitle("Extract Metadata - " + container.getName());
         setNeedsProgressMonitor(false);

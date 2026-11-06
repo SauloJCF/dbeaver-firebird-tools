@@ -15,7 +15,7 @@ public record ObjectKey(String kind, String name) {
             "ROLLBACK");
     private static final List<String> CREATABLE = List.of(
             "DOMAIN", "EXCEPTION", "ROLE", "PROCEDURE", "FUNCTION", "TRIGGER", "VIEW", "TABLE", "PACKAGE BODY",
-            "PACKAGE", "COLLATION", "FILTER", "EXTERNAL FUNCTION", "SHADOW", "INDEX");
+            "PACKAGE", "COLLATION", "FILTER", "EXTERNAL FUNCTION", "SHADOW", "INDEX", "MAPPING");
 
     /** A chave do statement já normalizado ({@link StatementNormalizer}), ou {@code null} se for ignorado. */
     public static ObjectKey of(String normalized) {
@@ -46,7 +46,7 @@ public record ObjectKey(String kind, String name) {
         if (head.equals("ALTER") && words.length > 3 && words[1].equals("TABLE")) {
             return new ObjectKey("TABLE", words[2]);
         }
-        if (head.equals("CREATE") || head.equals("ALTER") || head.equals("RECREATE")) {
+        if (head.equals("CREATE") || head.equals("ALTER") || head.equals("RECREATE") || head.equals("DECLARE")) {
             return createdObject(words);
         }
         return new ObjectKey("OTHER", String.join(" ", Arrays.copyOf(words, Math.min(words.length, 3))));
