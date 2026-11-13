@@ -14,7 +14,7 @@ Blocked by: 05
 
 ## Critérios de aceite
 
-- [ ] Comparação com a Referência do IBExpert passa para o subconjunto comum (triggers de tabela, exceptions, UDFs, roles). Passa para triggers, exceptions, roles e generators; **UDFs não estão na Referência** (o banco sintético não tem nenhuma), então esse pedaço depende da Dependência humana.
+- [x] Comparação com a Referência do IBExpert passa para o subconjunto comum (triggers de tabela, exceptions, roles; generators). **UDFs ficaram de fora por decisão do usuário (2026-11-12):** a Referência não tem nenhuma, e elas só têm ida e volta.
 - [x] Ida e volta verde para os tipos exclusivos do Firebird 5 (sequence com `INCREMENT`, triggers de banco e DDL, publications, mappings, collations).
 - [x] Triggers saem depois dos corpos das rotinas que chamam (Fase correta).
 
@@ -49,9 +49,23 @@ Blocked by: 05
 
 **Pendências e decisões em aberto**
 
-- **Dependência humana:** gerar a nova Referência do IBExpert com UDFs (e, se quiser, triggers com mais eventos) para fechar o critério 1. Sem isso, UDF só tem ida e volta.
+- **UDFs adiadas (decisão do usuário, 2026-11-12):** o código e a ida e volta ficam, mas a comparação com a Referência do IBExpert não os cobre. Se um dia valer, gerar a Referência com UDFs (Dependência humana).
 - **Aba Objects no DBeaver não foi verificada à mão:** os 8 grupos novos e o checkbox compilam e resolvem contra o DBeaver 26.2.2, mas ninguém abriu o wizard (a 05 fez essa verificação com o agent-desktop).
 - O script gerado foi executado via JDBC (`ExportTestDatabase.run`, que respeita `SET TERM`), não no `isql` (não há `isql` do Firebird 5 nesta máquina).
 - **Descrições (`COMMENT ON`) dos objetos novos** (exceptions, triggers, roles, collations, filters, UDFs, mappings) ficam para a **07**, que já cuida de descrições e grants; hoje só domínios e generators têm.
 - Sem aviso: trigger que referencia tabela fora da seleção; trigger ativo de DDL no destino dispara nas criações seguintes do script (os do sintético ficam inativos de propósito).
 - Sem teste: trigger UDR e `SQL SECURITY` em package/trigger fora do caso sintético; mapping com `USING` fora de `P` e `M`.
+
+### Ajustes da revisão (agente, 2026-11-12)
+
+- Trigger com tipo que a extração não decodifica (evento de banco desconhecido, tipo sem ação) agora avisa e é pulado, em vez de estourar o `IndexOutOfBounds` e derrubar a extração e o wizard. Teste: `typesWithoutAKnownEventDecodeToNull`.
+- `readMappings` e `readPublication` só tratam como "vazio" o erro de tabela/coluna desconhecida e de falta de permissão; qualquer outro (cancelamento, conexão) sobe. `listMappings`/`listPublications` passaram a lançar `SQLException`.
+- UDF com `BY SCALAR_ARRAY` (mecanismo 4, medido; o 3 é BLOB) agora sai com o modificador; `UDF_MATRIZ` entrou no banco sintético ampliado (6 UDFs).
+- `INCLUDE ALL TO PUBLICATION` só sai se houver tabela selecionada (teste novo), e a lista de incluídas só é calculada quando usada. Mapping ignorado por modo desconhecido agora conta no progresso.
+- Imports no lugar dos nomes qualificados; Javadoc de `ExtractionOptions` quebrado direito.
+- **Não alterado:** (a) mapping com `USING` fora de `P`/`M`: o achado dizia que o Firebird grava `S` e `*`, mas só medi `P` (com plugin ou sem, que é `ANY PLUGIN`) e `M`; `USING ANY PLUGIN SERIALLY` nem é aceito pelo 5.0. Segue aviso + pulo para qualquer outro valor. (b) `SET GENERATOR` lido durante a escrita e emitido depois: a extração não é um snapshot de qualquer forma, e a movida já está na spec e na ADR 0007. (c) Construtores de `ExtractionOptions`: ficam, os testes os usam; um builder é refatoração à parte. (d) `teste-extract.sql` é do commit `44ff999 "Save"`, não deste trabalho; não mexi.
+- `.\mvnw -o verify`: BUILD SUCCESS; 231 testes do depurador e 84 da exportação, 0 falhas.
+
+### Decisão (2026-11-12)
+
+- UDFs deixadas de lado por enquanto: saem do critério 1, que passa a valer para triggers, exceptions, roles e generators (verificado). O código das UDFs e o teste de ida e volta continuam na branch.

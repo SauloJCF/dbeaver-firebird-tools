@@ -1,6 +1,7 @@
 package dev.fbtools.dbeaver.export.extract;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +35,13 @@ class TriggerEventTest {
         assertEquals("ON TRANSACTION START", TriggerCatalog.event(8194));
         assertEquals("ON TRANSACTION COMMIT", TriggerCatalog.event(8195));
         assertEquals("ON TRANSACTION ROLLBACK", TriggerCatalog.event(8196));
+    }
+
+    @Test
+    void typesWithoutAKnownEventDecodeToNull() {
+        assertNull(TriggerCatalog.event(8192 + 99));
+        assertNull(TriggerCatalog.event(0));
+        assertNull(TriggerCatalog.event(16384));
     }
 
     @Test

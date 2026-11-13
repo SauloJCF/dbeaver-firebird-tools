@@ -5,8 +5,9 @@ package dev.fbtools.dbeaver.export.extract;
  * 0009). {@code alwaysCharacterSet}: {@code CHARACTER SET}/{@code COLLATE} em todas as colunas de texto, e não só
  * quando diferem do padrão do banco. {@code computedBySeparate}: colunas {@code COMPUTED BY} fora do
  * {@code CREATE TABLE}, em {@code ALTER TABLE ... ADD}. {@code alwaysQuote}: todos os identificadores entre aspas.
- * {@code createOrAlter}: {@code CREATE OR ALTER} nas views, triggers e nos corpos de procedures e functions. {@code noSetTerm}: sem {@code SET TERM}; cada rotina termina em {@code END;}. Nem o
- * {@code isql} nem o DBeaver executam esse formato (cortam a rotina no primeiro {@code ;} interno); serve só a quem
+ * {@code createOrAlter}: {@code CREATE OR ALTER} nas views, triggers e nos corpos de procedures e functions.
+ * {@code noSetTerm}: sem {@code SET TERM}; cada rotina termina em {@code END;}. Nem o {@code isql} nem o DBeaver
+ * executam esse formato (cortam a rotina no primeiro {@code ;} interno); serve só a quem
  * lê o script ou a uma ferramenta que reconheça o bloco {@code BEGIN ... END}. {@code omitHeader}: sem o
  * {@code SET SQL DIALECT} e o {@code SET NAMES} do início, que o DBeaver recusa (são comandos do {@code isql}).
  * {@code useSequence}: {@code CREATE SEQUENCE} no lugar de {@code CREATE GENERATOR}; um generator com {@code START WITH}
