@@ -7,10 +7,15 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Group;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Spinner;
+import org.eclipse.swt.widgets.Text;
 import org.osgi.service.prefs.BackingStoreException;
 import org.osgi.service.prefs.Preferences;
 
+import dev.fbtools.dbeaver.export.extract.DataOptions;
 import dev.fbtools.dbeaver.export.extract.ExtractionOptions;
 
 /**
@@ -35,6 +40,13 @@ final class OptionsPage extends WizardPage {
     private Button useSequence;
     private Button grants;
     private Button grantsOnlySelected;
+    private Text dateFormat;
+    private Text dateTimeFormat;
+    private Button ansiPrefix;
+    private Button trimTrailingSpaces;
+    private Button stripControlCharacters;
+    private Button extractBlobs;
+    private Spinner commitEvery;
 
     OptionsPage() {
         super("options");
@@ -74,7 +86,47 @@ final class OptionsPage extends WizardPage {
         grantsOnlySelected = check(privileges, "grantsOnlySelected", "Só os privilégios dos objetos selecionados");
         grants.addListener(SWT.Selection, event -> grantsOnlySelected.setEnabled(grants.getSelection()));
         grantsOnlySelected.setEnabled(grants.getSelection());
+
+        Composite data = group(root, "Dados");
+        data.setLayout(new GridLayout(2, false));
+        dateFormat = text(data, "dateFormat", "Formato de data (vazio: yyyy-MM-dd):");
+        dateTimeFormat = text(data, "dateTimeFormat", "Formato de data e hora (vazio: yyyy-MM-dd HH:mm:ss):");
+        ansiPrefix = check(data, "ansiPrefix", "Prefixo ANSI (DATE '...', TIMESTAMP '...')");
+        trimTrailingSpaces = check(data, "trimTrailingSpaces", "Remover espaços finais dos textos");
+        stripControlCharacters = check(data, "stripControlCharacters",
+                "Remover caracteres de controle (quebras de linha, tabs) dos textos");
+        extractBlobs = check(data, "extractBlobs", "Extrair BLOBs (texto inline, binário em x'...')");
+        new Label(data, SWT.NONE).setText("COMMIT WORK a cada N registros:");
+        commitEvery = new Spinner(data, SWT.BORDER);
+        commitEvery.setMinimum(1);
+        commitEvery.setMaximum(1_000_000);
+        commitEvery.setSelection(InstanceScope.INSTANCE.getNode(PREFERENCES_NODE).getInt(PREFIX + "commitEvery",
+                DataOptions.DEFAULT_COMMIT_EVERY));
+        for (Control control : data.getChildren()) {
+            if (control instanceof Button button) {
+                button.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+            }
+        }
+        dateFormat.addModifyListener(event -> validateFormats());
+        dateTimeFormat.addModifyListener(event -> validateFormats());
         setControl(root);
+    }
+
+    private void validateFormats() {
+        String error = DataOptions.checkFormats(dateFormat.getText(), dateTimeFormat.getText());
+        setErrorMessage(error);
+        setPageComplete(error == null);
+    }
+
+    /** As opções de dados; o limite de tamanho e o cabeçalho vêm de fora (Output e Geral). */
+    DataOptions dataOptions(long maxFileBytes) {
+        return new DataOptions(blankToNull(dateFormat.getText()), blankToNull(dateTimeFormat.getText()),
+                ansiPrefix.getSelection(), trimTrailingSpaces.getSelection(), stripControlCharacters.getSelection(),
+                extractBlobs.getSelection(), commitEvery.getSelection(), maxFileBytes, omitHeader.getSelection());
+    }
+
+    private static String blankToNull(String text) {
+        return text.isBlank() ? null : text.strip();
     }
 
     ExtractionOptions options() {
@@ -90,9 +142,12 @@ final class OptionsPage extends WizardPage {
         Preferences node = InstanceScope.INSTANCE.getNode(PREFERENCES_NODE);
         for (Button button : new Button[] {createDatabase, omitHeader, setGenerators, descriptions, decodeDomains,
                 createOrAlter, noSetTerm, alwaysQuote, alwaysCharacterSet, computedBySeparate, useSequence, grants,
-                grantsOnlySelected}) {
+                grantsOnlySelected, ansiPrefix, trimTrailingSpaces, stripControlCharacters, extractBlobs}) {
             node.putBoolean(PREFIX + button.getData(), button.getSelection());
         }
+        node.put(PREFIX + "dateFormat", dateFormat.getText().strip());
+        node.put(PREFIX + "dateTimeFormat", dateTimeFormat.getText().strip());
+        node.putInt(PREFIX + "commitEvery", commitEvery.getSelection());
         try {
             node.flush();
         } catch (BackingStoreException e) {
@@ -106,6 +161,15 @@ final class OptionsPage extends WizardPage {
         group.setLayout(new GridLayout());
         group.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
         return group;
+    }
+
+    /** Um campo de texto com rótulo, com o valor que ficou guardado. */
+    private static Text text(Composite parent, String key, String label) {
+        new Label(parent, SWT.NONE).setText(label);
+        Text field = new Text(parent, SWT.BORDER);
+        field.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+        field.setText(InstanceScope.INSTANCE.getNode(PREFERENCES_NODE).get(PREFIX + key, ""));
+        return field;
     }
 
     /** Uma opção; o valor inicial é o que ficou guardado, ou o padrão de {@link ExtractionOptions#DEFAULT}. */
@@ -133,6 +197,10 @@ final class OptionsPage extends WizardPage {
             case "computedBySeparate" -> defaults.computedBySeparate();
             case "useSequence" -> defaults.useSequence();
             case "grants" -> defaults.grants();
+            case "ansiPrefix" -> DataOptions.DEFAULT.ansiPrefix();
+            case "trimTrailingSpaces" -> DataOptions.DEFAULT.trimTrailingSpaces();
+            case "stripControlCharacters" -> DataOptions.DEFAULT.stripControlCharacters();
+            case "extractBlobs" -> DataOptions.DEFAULT.extractBlobs();
             default -> defaults.grantsOnlySelected();
         };
     }

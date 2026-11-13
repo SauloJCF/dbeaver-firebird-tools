@@ -38,6 +38,20 @@ public record DatabaseInfo(String defaultCharacterSet, String defaultCollation) 
         }
     }
 
+    /** Avisa quando a conexão usa outro charset que o do banco: textos NONE ou de outro charset podem sair trocados (ADR 0009). */
+    public static void warnIfConnectionDiffers(Connection connection, DatabaseInfo info, ExtractionProgress progress) {
+        try {
+            String used = connectionCharacterSet(connection);
+            if (used != null && !used.equals(info.defaultCharacterSet())) {
+                progress.warn("A conexão usa o charset " + used + ", e o banco usa " + info.defaultCharacterSet()
+                        + ". Textos de colunas NONE ou de outro charset podem sair trocados; ajuste o charset da conexão"
+                        + " para o do banco (ADR 0009).");
+            }
+        } catch (SQLException e) {
+            // MON$ pode estar fora do alcance do usuário: sem a informação, não há aviso.
+        }
+    }
+
     /** A codificação Java do charset padrão do banco; UTF-8 para {@code NONE} e para o que o Java não conhece. */
     public Charset javaCharset() {
         String name = defaultCharacterSet.toUpperCase();

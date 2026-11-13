@@ -17,9 +17,12 @@ import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Spinner;
 import org.eclipse.swt.widgets.Text;
 import org.osgi.service.prefs.BackingStoreException;
 import org.osgi.service.prefs.Preferences;
+
+import dev.fbtools.dbeaver.export.extract.DataFile;
 
 /** Aba Output: arquivo (nome padrão {@code <conexão>_<AAAAMMDD-HHMM>.sql}), codificação e abrir ao terminar (ADR 0009). */
 final class OutputPage extends WizardPage {
@@ -43,12 +46,13 @@ final class OutputPage extends WizardPage {
     private Text file;
     private Combo encoding;
     private Button openWhenDone;
+    private Spinner limitMegabytes;
 
     OutputPage(String connectionName) {
         super("output");
         this.connectionName = connectionName;
         setTitle("Output");
-        setDescription("Arquivo do script de metadata.");
+        setDescription("Arquivo do script de metadata e limite de tamanho do script de dados.");
     }
 
     @Override
@@ -73,6 +77,18 @@ final class OutputPage extends WizardPage {
         encoding.select(0);
         encoding.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
+        new Label(root, SWT.NONE).setText("Limit file size (MB, 0 = sem limite):");
+        limitMegabytes = new Spinner(root, SWT.BORDER);
+        limitMegabytes.setMinimum(0);
+        limitMegabytes.setMaximum(100_000);
+        limitMegabytes.setLayoutData(new GridData(SWT.BEGINNING, SWT.CENTER, false, false, 2, 1));
+        Label dataNote = new Label(root, SWT.WRAP);
+        dataNote.setText("Os dados vão para um script à parte, com o nome do arquivo acima mais _data (ex.: x_data.sql). "
+                + "Com limite de tamanho, ele é dividido em x_data_001.sql, x_data_002.sql… (cada um roda sozinho, em sequência).");
+        GridData dataNoteData = new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1);
+        dataNoteData.widthHint = 500;
+        dataNote.setLayoutData(dataNoteData);
+
         openWhenDone = new Button(root, SWT.CHECK);
         openWhenDone.setText("Abrir no editor ao terminar");
         openWhenDone.setSelection(true);
@@ -90,6 +106,16 @@ final class OutputPage extends WizardPage {
 
     Path path() {
         return Path.of(file.getText().strip());
+    }
+
+    /** O arquivo do script de dados: o do metadata com {@code _data} antes da extensão. */
+    Path dataPath() {
+        return DataFile.withSuffix(path(), "_data");
+    }
+
+    /** O tamanho a partir do qual o script de dados continua noutro arquivo; 0 não divide. */
+    long maxFileBytes() {
+        return limitMegabytes.getSelection() * 1024L * 1024L;
     }
 
     Encoding encoding() {

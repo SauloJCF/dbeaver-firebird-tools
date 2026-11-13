@@ -652,16 +652,7 @@ public final class MetadataExtractor {
     }
 
     private void warnIfConnectionCharsetDiffers(DatabaseInfo info, ExtractionProgress progress) {
-        try {
-            String used = DatabaseInfo.connectionCharacterSet(connection);
-            if (used != null && !used.equals(info.defaultCharacterSet())) {
-                progress.warn("A conexão usa o charset " + used + ", e o banco usa " + info.defaultCharacterSet()
-                        + ". Textos de colunas NONE ou de outro charset podem sair trocados; ajuste o charset da conexão"
-                        + " para o do banco (ADR 0009).");
-            }
-        } catch (SQLException e) {
-            // MON$ pode estar fora do alcance do usuário: sem a informação, não há aviso.
-        }
+        DatabaseInfo.warnIfConnectionDiffers(connection, info, progress);
     }
 
     /**
