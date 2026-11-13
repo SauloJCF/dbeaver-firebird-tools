@@ -75,7 +75,7 @@ public final class ExportTestDatabase {
             for (String sql : ScriptSplitter.split(script)) {
                 String head = StatementNormalizer.normalize(sql);
                 if ((head.startsWith("SET ") && !head.startsWith("SET GENERATOR")) || head.startsWith("CREATE DATABASE")
-                        || head.startsWith("CONNECT") || head.equals("COMMIT")) {
+                        || head.startsWith("CONNECT") || head.equals("COMMIT") || head.equals("COMMIT WORK")) {
                     continue;
                 }
                 statement.execute(sql);

@@ -91,7 +91,12 @@ final class ObjectsPage extends WizardPage {
         refresh();
     }
 
-    /** Os objetos escolhidos; a página só fica completa com pelo menos um. */
+    /** Se há algum objeto de metadata escolhido (sem eles, só o script de dados é gerado). */
+    boolean hasSelection() {
+        return chosen.values().stream().anyMatch(names -> !names.isEmpty());
+    }
+
+    /** Os objetos escolhidos. */
     Selection selection() {
         return new Selection(chosen(DOMAINS), chosen(GENERATORS), chosen(TABLES), chosen(INDEXES), chosen(VIEWS),
                 chosen(PROCEDURES), chosen(FUNCTIONS), chosen(PACKAGES), chosen(EXCEPTIONS), chosen(UDFS),
@@ -157,14 +162,15 @@ final class ObjectsPage extends WizardPage {
 
     private void refresh() {
         selected.removeAll();
-        boolean any = false;
         for (String group : GROUPS) {
             for (String name : chosen.get(group)) {
                 selected.add(LABELS.get(group) + name);
-                any = true;
             }
         }
-        setPageComplete(any);
+        setPageComplete(true);
+        if (getContainer() != null) {
+            getContainer().updateButtons();
+        }
     }
 
     private static Button button(Composite parent, String text, Runnable action) {

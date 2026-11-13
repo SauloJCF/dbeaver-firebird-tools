@@ -7,3 +7,5 @@ GRANT GRANT SELECT ON RDB$PAGES TO PUBLIC | privilégio de sistema; o plugin ext
 GRANT GRANT SELECT ON RDB$ROLES TO PUBLIC | privilégio de sistema; o plugin extrai só os privilégios do usuário
 # O IBExpert não extrai a pertinência a uma role (GRANT role TO usuário); o plugin extrai.
 GRANT GRANT VENDEDOR TO SYSDBA | o IBExpert não extrai GRANT de role para usuário
+# Dados: o IBExpert grava TIME com 3 casas e TIMESTAMP sem fração de segundo; o Firebird guarda 4 casas e o plugin as preserva.
+DATA TIPOS_VARIOS | o IBExpert trunca as frações de segundo de TIME (.9999 vira .999) e TIMESTAMP (.9999 some); o plugin mantém o valor inteiro
