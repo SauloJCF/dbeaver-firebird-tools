@@ -118,9 +118,16 @@ final class TriggerCatalog {
                 if (!selection.includesTrigger(name)) {
                     continue;
                 }
+                long type = rs.getLong(3);
+                String event = event(type);
+                if (event == null) {
+                    progress.warn("O trigger " + name + " tem o tipo " + type + ", que a extração não sabe decodificar;"
+                            + " ele não saiu no script.");
+                    continue;
+                }
                 boolean definer = rs.getBoolean(7);
                 Boolean security = rs.wasNull() ? null : definer;
-                triggers.add(new Trigger(name, Rdb.trimmed(rs.getString(2)), event(rs.getLong(3)), rs.getInt(4),
+                triggers.add(new Trigger(name, Rdb.trimmed(rs.getString(2)), event, rs.getInt(4),
                         rs.getInt(5) == 1, rs.getString(6), security, Rdb.trimmed(rs.getString(8)),
                         Rdb.trimmed(rs.getString(9))));
             }
@@ -128,7 +135,7 @@ final class TriggerCatalog {
         return triggers;
     }
 
-    /** O evento no formato da sintaxe, decodificado de {@code RDB$TRIGGER_TYPE}. */
+    /** O evento no formato da sintaxe, decodificado de {@code RDB$TRIGGER_TYPE}; {@code null} se o tipo não tem evento conhecido. */
     static String event(long type) {
         if ((type & DDL_FLAG) != 0) {
             String phase = (type & 1) == 1 ? "AFTER " : "BEFORE ";
@@ -141,10 +148,11 @@ final class TriggerCatalog {
                     events.add(DDL_EVENTS[bit]);
                 }
             }
-            return phase + String.join(" OR ", events);
+            return events.isEmpty() ? null : phase + String.join(" OR ", events);
         }
         if ((type & DATABASE_FLAG) != 0) {
-            return "ON " + DATABASE_EVENTS.get((int) (type - DATABASE_FLAG));
+            int event = (int) (type - DATABASE_FLAG);
+            return event >= 0 && event < DATABASE_EVENTS.size() ? "ON " + DATABASE_EVENTS.get(event) : null;
         }
         List<String> actions = new ArrayList<>();
         for (int slot = 0; slot < 3; slot++) {
@@ -153,7 +161,7 @@ final class TriggerCatalog {
                 actions.add(TABLE_ACTIONS[action]);
             }
         }
-        return ((type & 1) == 1 ? "BEFORE " : "AFTER ") + String.join(" OR ", actions);
+        return actions.isEmpty() ? null : ((type & 1) == 1 ? "BEFORE " : "AFTER ") + String.join(" OR ", actions);
     }
 
     /** O que vem depois do cabeçalho: a Fonte do banco, que já começa em {@code AS} (nula, só em catálogo estranho, vira corpo vazio). */

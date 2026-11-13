@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -124,12 +125,12 @@ public final class MetadataExtractor {
     }
 
     /** A publication padrão, se o banco a usa (ligada, com tabelas ou inclusão automática), para a aba Objects. */
-    public List<String> listPublications() {
+    public List<String> listPublications() throws SQLException {
         return new ObjectCatalog(connection).listPublicationNames();
     }
 
     /** Nomes dos mappings locais, para a aba Objects. */
-    public List<String> listMappings() {
+    public List<String> listMappings() throws SQLException {
         return new ObjectCatalog(connection).listMappingNames();
     }
 
@@ -235,7 +236,7 @@ public final class MetadataExtractor {
 
     /** Um bloco de objetos simples: um statement por objeto, sem ordem entre eles além da alfabética. */
     private static <T> void writeObjects(Writer out, String title, List<T> items,
-            java.util.function.Function<T, String> name, String label, java.util.function.Function<T, String> sql,
+            Function<T, String> name, String label, Function<T, String> sql,
             ExtractionProgress progress) throws IOException {
         if (items.isEmpty()) {
             return;
@@ -256,6 +257,7 @@ public final class MetadataExtractor {
             if (mapping.toSql(options) == null) {
                 progress.warn("O mapping " + mapping.name() + " usa o modo de autenticação '" + mapping.using()
                         + "', que a extração não conhece; ele não saiu no script.");
+                progress.extracted("Mapping " + mapping.name() + " (ignorado)");
             } else {
                 known.add(mapping);
             }
@@ -281,7 +283,8 @@ public final class MetadataExtractor {
 
     /**
      * A publication padrão (o Firebird 5 não tem outra): inclusão automática, tabelas e se está ligada. Depois das
-     * tabelas, que ela referencia; só as tabelas da seleção entram.
+     * tabelas, que ela referencia; só as tabelas da seleção entram, e a inclusão automática ({@code INCLUDE ALL}) só sai
+     * se houver tabela selecionada, que senão ela mudaria a replicação de tabelas fora da extração.
      */
     private static void writePublication(Writer out, ObjectCatalog.Publication publication,
             List<TableCatalog.Table> tables, ExtractionOptions options) throws IOException {
@@ -289,17 +292,19 @@ public final class MetadataExtractor {
             return;
         }
         List<String> statements = new ArrayList<>();
-        List<String> included = tables.stream().map(TableCatalog.Table::name)
-                .filter(publication.tables()::contains).map(options::quote).toList();
-        if (publication.autoEnable()) {
+        if (publication.autoEnable() && !tables.isEmpty()) {
             statements.add("ALTER DATABASE INCLUDE ALL TO PUBLICATION;");
             List<String> excluded = tables.stream().map(TableCatalog.Table::name)
                     .filter(table -> !publication.tables().contains(table)).map(options::quote).toList();
             if (!excluded.isEmpty()) {
                 statements.add("ALTER DATABASE EXCLUDE TABLE " + String.join(", ", excluded) + " FROM PUBLICATION;");
             }
-        } else if (!included.isEmpty()) {
-            statements.add("ALTER DATABASE INCLUDE TABLE " + String.join(", ", included) + " TO PUBLICATION;");
+        } else {
+            List<String> included = tables.stream().map(TableCatalog.Table::name)
+                    .filter(publication.tables()::contains).map(options::quote).toList();
+            if (!included.isEmpty()) {
+                statements.add("ALTER DATABASE INCLUDE TABLE " + String.join(", ", included) + " TO PUBLICATION;");
+            }
         }
         if (publication.active()) {
             statements.add("ALTER DATABASE ENABLE PUBLICATION;");

@@ -5,6 +5,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -143,7 +145,7 @@ final class ObjectCatalog {
             if (specific == null) {
                 return "";
             }
-            return java.util.Arrays.stream(specific.split(";"))
+            return Arrays.stream(specific.split(";"))
                     .filter(part -> !part.isBlank() && !part.startsWith("COLL-VERSION=")
                             && !part.startsWith("ICU-VERSION="))
                     .collect(Collectors.joining(";"));
@@ -173,8 +175,7 @@ final class ObjectCatalog {
                 if (argument.position() == 0) {
                     returns = argument;
                 } else {
-                    inputs.add(typeSql(argument, defaultCharacterSet)
-                            + (argument.mechanism() == 2 ? " BY DESCRIPTOR" : ""));
+                    inputs.add(typeSql(argument, defaultCharacterSet) + inputMechanism(argument.mechanism()));
                 }
             }
             if (!inputs.isEmpty()) {
@@ -195,6 +196,15 @@ final class ObjectCatalog {
             }
             return sql.append("\nENTRY_POINT ").append(literal(entryPoint)).append(" MODULE_NAME ")
                     .append(literal(module)).append(';').toString();
+        }
+
+        // Mecanismo 1 (por referência) e 3 (BLOB) são os padrões do tipo; 2 é BY DESCRIPTOR e 4 BY SCALAR_ARRAY (medido no Firebird 5).
+        private static String inputMechanism(int mechanism) {
+            return switch (mechanism) {
+                case 2 -> " BY DESCRIPTOR";
+                case 4 -> " BY SCALAR_ARRAY";
+                default -> "";
+            };
         }
 
         private static String typeSql(UdfArgument argument, String defaultCharacterSet) {
@@ -261,11 +271,11 @@ final class ObjectCatalog {
         return readUdfs(Selection.all()).stream().map(Udf::name).toList();
     }
 
-    List<String> listMappingNames() {
+    List<String> listMappingNames() throws SQLException {
         return readMappings(Selection.all()).stream().map(Mapping::name).toList();
     }
 
-    List<String> listPublicationNames() {
+    List<String> listPublicationNames() throws SQLException {
         Publication publication = readPublication();
         return publication != null && publication.configured() ? List.of(DEFAULT_PUBLICATION) : List.of();
     }
@@ -350,8 +360,8 @@ final class ObjectCatalog {
         return udfs;
     }
 
-    /** Sem acesso a {@code RDB$AUTH_MAPPING} (banco antigo ou usuário sem permissão), não há mappings a extrair. */
-    List<Mapping> readMappings(Selection selection) {
+    /** Banco sem {@code RDB$AUTH_MAPPING} ou usuário sem permissão nela: não há mappings a extrair. Outro erro sobe. */
+    List<Mapping> readMappings(Selection selection) throws SQLException {
         List<Mapping> mappings = new ArrayList<>();
         try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(MAPPINGS)) {
             while (rs.next()) {
@@ -363,20 +373,23 @@ final class ObjectCatalog {
                 }
             }
         } catch (SQLException e) {
-            return List.of();
+            if (isMissingOrDenied(e)) {
+                return List.of();
+            }
+            throw e;
         }
         return mappings;
     }
 
-    /** {@code null} se o banco não tem publications (anterior ao Firebird 4). */
-    Publication readPublication() {
+    /** {@code null} se o banco não tem publications (anterior ao Firebird 4) ou o usuário não as vê. Outro erro sobe. */
+    Publication readPublication() throws SQLException {
         try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(PUBLICATION)) {
             if (!rs.next()) {
                 return null;
             }
             boolean active = rs.getInt(1) == 1;
             boolean autoEnable = rs.getInt(2) == 1;
-            Set<String> tables = new java.util.LinkedHashSet<>();
+            Set<String> tables = new LinkedHashSet<>();
             try (Statement tableStatement = connection.createStatement();
                     ResultSet tableRs = tableStatement.executeQuery(PUBLICATION_TABLES)) {
                 while (tableRs.next()) {
@@ -385,8 +398,17 @@ final class ObjectCatalog {
             }
             return new Publication(active, autoEnable, tables);
         } catch (SQLException e) {
-            return null;
+            if (isMissingOrDenied(e)) {
+                return null;
+            }
+            throw e;
         }
+    }
+
+    // Tabela desconhecida (335544580), coluna desconhecida (335544578) e sem permissão (335544352).
+    private static boolean isMissingOrDenied(SQLException e) {
+        int code = e.getErrorCode();
+        return code == 335544580 || code == 335544578 || code == 335544352;
     }
 
     private static long littleEndian(byte[] bytes) {

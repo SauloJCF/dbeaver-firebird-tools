@@ -71,6 +71,7 @@ class OtherObjectsExtractionTest {
                 "RETURNS CSTRING(20) FREE_IT",
                 "RETURNS PARAMETER 2",
                 "RETURNS INTEGER BY VALUE",
+                "INTEGER BY SCALAR_ARRAY",
                 "CREATE ROLE ADMIN_USUARIOS SET SYSTEM PRIVILEGES TO USER_MANAGEMENT, MONITOR_ANY_ATTACHMENT;",
                 "CREATE MAPPING MAP_ENCADEADO USING MAPPING FROM ANY USER TO ROLE VENDEDOR;",
                 "ACTIVE ON CONNECT POSITION 0",
@@ -202,7 +203,7 @@ class OtherObjectsExtractionTest {
             assertEquals(List.of("ADMIN_USUARIOS", "GERENTE", "VENDEDOR"), extractor.listRoles());
             assertEquals(9 + 6, extractor.listTriggers().size());
             assertEquals(List.of("FILTRO_TEXTO"), extractor.listFilters());
-            assertEquals(5, extractor.listUdfs().size());
+            assertEquals(6, extractor.listUdfs().size());
             assertEquals(3, extractor.listCollations().size());
             assertEquals(List.of("RDB$DEFAULT"), extractor.listPublications());
             assertEquals(4, extractor.listMappings().size());
@@ -251,6 +252,18 @@ class OtherObjectsExtractionTest {
             assertEquals(List.of(), new MetadataExtractor(connection).listPublications());
         }
         assertFalse(extract(plain, ExtractionOptions.DEFAULT).contains("PUBLICATION"));
+    }
+
+    @Test
+    void autoEnabledPublicationWithoutSelectedTablesDoesNotIncludeAll() throws Exception {
+        ExportTestDatabase source = ExportTestDatabase.create("objects-publication-no-tables", "UTF8");
+        execute(source, "CREATE TABLE A (ID INTEGER)", "ALTER DATABASE INCLUDE ALL TO PUBLICATION",
+                "ALTER DATABASE ENABLE PUBLICATION");
+        Selection onlyPublication = new Selection(Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of(),
+                Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of(), Set.of("RDB$DEFAULT"), Set.of());
+        String script = extract(source, ExtractionOptions.DEFAULT, onlyPublication, ExtractionProgress.NONE);
+        assertFalse(script.contains("INCLUDE ALL"), script);
+        assertTrue(script.contains("ALTER DATABASE ENABLE PUBLICATION;"), script);
     }
 
     @Test
