@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Gera o Script de metadata lendo {@code RDB$*} direto (ADR 0007), na ordem das Fases: collations, BLOB filters e
@@ -29,7 +30,7 @@ public final class MetadataExtractor {
     private static final String DOMAINS = """
             SELECT f.RDB$FIELD_NAME, f.RDB$FIELD_TYPE, f.RDB$FIELD_SUB_TYPE, f.RDB$FIELD_LENGTH,
                    f.RDB$CHARACTER_LENGTH, f.RDB$FIELD_PRECISION, f.RDB$FIELD_SCALE, f.RDB$SEGMENT_LENGTH,
-                   f.RDB$DEFAULT_SOURCE, f.RDB$VALIDATION_SOURCE, f.RDB$NULL_FLAG, f.RDB$DESCRIPTION,
+                   f.RDB$DEFAULT_SOURCE, f.RDB$VALIDATION_SOURCE, f.RDB$NULL_FLAG,
                    cs.RDB$CHARACTER_SET_NAME, co.RDB$COLLATION_NAME
               FROM RDB$FIELDS f
               LEFT JOIN RDB$CHARACTER_SETS cs ON cs.RDB$CHARACTER_SET_ID = f.RDB$CHARACTER_SET_ID
@@ -40,7 +41,7 @@ public final class MetadataExtractor {
 
     // Generators de identity (RDB$SYSTEM_FLAG = 6) e de sistema pertencem à tabela ou ao servidor, não ao script.
     private static final String GENERATORS = """
-            SELECT RDB$GENERATOR_NAME, RDB$DESCRIPTION, RDB$INITIAL_VALUE, RDB$GENERATOR_INCREMENT
+            SELECT RDB$GENERATOR_NAME, RDB$INITIAL_VALUE, RDB$GENERATOR_INCREMENT
               FROM RDB$GENERATORS WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY RDB$GENERATOR_NAME""";
 
     private final Connection connection;
@@ -52,7 +53,7 @@ public final class MetadataExtractor {
     /** Nomes dos domínios do usuário, para a aba Objects. */
     public List<String> listDomains() throws SQLException {
         List<String> names = new ArrayList<>();
-        for (Domain domain : readDomains(Selection.all(), ExtractionProgress.NONE)) {
+        for (Domain domain : readDomains(ExtractionProgress.NONE)) {
             names.add(domain.name());
         }
         return names;
@@ -150,7 +151,8 @@ public final class MetadataExtractor {
             ExtractionProgress progress) throws SQLException, IOException {
         DatabaseInfo info = DatabaseInfo.read(connection);
         TableCatalog catalog = new TableCatalog(connection);
-        List<Domain> domains = readDomains(selection, progress);
+        List<Domain> allDomains = readDomains(progress);
+        List<Domain> domains = allDomains.stream().filter(domain -> selection.includesDomain(domain.name())).toList();
         Map<String, Generator> generators = readGenerators(selection);
         ObjectCatalog objects = new ObjectCatalog(connection);
         List<ObjectCatalog.Collation> collations = objects.readCollations(selection);
@@ -163,6 +165,9 @@ public final class MetadataExtractor {
         ObjectCatalog.Publication publication = selection.includesPublication(ObjectCatalog.DEFAULT_PUBLICATION)
                 ? objects.readPublication() : null;
         List<TableCatalog.Table> tables = catalog.readTables(selection, progress);
+        if (options.decodeDomains()) {
+            tables = decodeDomains(tables, allDomains, progress);
+        }
         List<TableCatalog.Index> indexes = catalog.readIndexes(selection, progress);
         warnIfConnectionCharsetDiffers(info, progress);
         warnAboutNoneColumns(info, domains, tables, progress);
@@ -170,6 +175,9 @@ public final class MetadataExtractor {
         RoutineCatalog routineCatalog = new RoutineCatalog(connection);
         RoutineCatalog.Routines routines = routineCatalog.readRoutines(selection, progress);
         warnAboutMissingDependencies(domains, tables, views, routines, progress);
+        if (options.decodeDomains()) {
+            warnAboutDecodedRoutineChecks(routines, options, progress);
+        }
         warnAboutRoutinesUsedByTables(routineCatalog.readTableUsers(), selection, progress);
         progress.begin(domains.size() + generators.size() + tables.size() + views.size() + indexes.size()
                 + routines.size() + collations.size() + filters.size() + udfs.size() + exceptions.size()
@@ -209,8 +217,10 @@ public final class MetadataExtractor {
             for (Map.Entry<String, Generator> generator : generators.entrySet()) {
                 progress.checkCancelled();
                 out.write(generator.getValue().toSql(options.quote(generator.getKey()), options) + "\n");
-                setGenerators.add("SET GENERATOR " + options.quote(generator.getKey()) + " TO "
-                        + currentValue(statement, generator.getKey()) + ";");
+                if (options.setGenerators()) {
+                    setGenerators.add("SET GENERATOR " + options.quote(generator.getKey()) + " TO "
+                            + currentValue(statement, generator.getKey()) + ";");
+                }
                 progress.extracted("Generator " + generator.getKey());
             }
         }
@@ -230,7 +240,15 @@ public final class MetadataExtractor {
         writeTriggers(out, triggers, options, progress);
         writeBlock(out, "Set generators", setGenerators);
         writePublication(out, publication, tables, options);
-        writeDescriptions(out, domains, generators, options);
+        if (options.descriptions()) {
+            DescriptionCatalog descriptionCatalog = new DescriptionCatalog(connection);
+            descriptionCatalog.warnAboutSkipped(progress);
+            writeBlock(out, "Descriptions", descriptionCatalog.read(selection, options, progress)
+                    .stream().map(DescriptionCatalog.Description::toSql).toList());
+        }
+        if (options.grants()) {
+            writeBlock(out, "Grants", new GrantCatalog(connection).read(selection, options, progress));
+        }
         out.flush();
     }
 
@@ -310,6 +328,60 @@ public final class MetadataExtractor {
             statements.add("ALTER DATABASE ENABLE PUBLICATION;");
         }
         writeBlock(out, "Publication", statements);
+    }
+
+    /**
+     * Decode domains: cada coluna de domínio passa a ter o tipo, o padrão e o {@code NOT NULL} dele, e a tabela deixa
+     * de depender do domínio. O {@code CHECK} do domínio não vai (o {@code VALUE} dele só existe no domínio): a extração
+     * avisa quais colunas o perdem.
+     */
+    private static List<TableCatalog.Table> decodeDomains(List<TableCatalog.Table> tables, List<Domain> domains,
+            ExtractionProgress progress) {
+        Map<String, Domain> byName = domains.stream().collect(Collectors.toMap(Domain::name, domain -> domain));
+        Set<String> lostChecks = new TreeSet<>();
+        List<TableCatalog.Table> decoded = new ArrayList<>();
+        for (TableCatalog.Table table : tables) {
+            List<TableCatalog.Column> columns = new ArrayList<>();
+            for (TableCatalog.Column column : table.columns()) {
+                Domain domain = column.domain() == null ? null : byName.get(column.domain());
+                if (domain == null) {
+                    columns.add(column);
+                    continue;
+                }
+                if (domain.checkSource() != null) {
+                    lostChecks.add(table.name() + "." + column.name() + " (" + domain.name() + ")");
+                }
+                columns.add(new TableCatalog.Column(column.name(), null, null, domain.type(),
+                        column.defaultSource() != null ? column.defaultSource() : domain.defaultSource(),
+                        column.notNull() || domain.notNull(), column.collation(), column.identity()));
+            }
+            decoded.add(new TableCatalog.Table(table.name(), table.type(), table.externalFile(), columns,
+                    table.constraints()));
+        }
+        if (!lostChecks.isEmpty()) {
+            progress.warn("Decode domains: o CHECK do domínio não passa para a coluna em " + String.join(", ", lostChecks)
+                    + ".");
+        }
+        return decoded;
+    }
+
+    /** Decode domains nos parâmetros: o {@code CHECK} do domínio se perde, e a extração avisa onde. */
+    private static void warnAboutDecodedRoutineChecks(RoutineCatalog.Routines routines, ExtractionOptions options,
+            ExtractionProgress progress) {
+        Set<String> lost = new TreeSet<>();
+        for (RoutineCatalog.Procedure procedure : routines.procedures()) {
+            Stream.concat(procedure.inputs().stream(), procedure.outputs().stream())
+                    .filter(parameter -> parameter.decoded(options) && parameter.domainCheck())
+                    .forEach(parameter -> lost.add(procedure.name() + "." + parameter.name() + " (" + parameter.domain() + ")"));
+        }
+        for (RoutineCatalog.Function function : routines.functions()) {
+            Stream.concat(function.inputs().stream(), Stream.of(function.returns()))
+                    .filter(parameter -> parameter.decoded(options) && parameter.domainCheck())
+                    .forEach(parameter -> lost.add(function.name() + "." + parameter.name() + " (" + parameter.domain() + ")"));
+        }
+        if (!lost.isEmpty()) {
+            progress.warn("Decode domains: o CHECK do domínio não passa para o parâmetro em " + String.join(", ", lost) + ".");
+        }
     }
 
     /** Fase de tabelas: sem FKs nem checks, só chaves primárias e únicas, que as FKs precisam já existir. */
@@ -536,7 +608,7 @@ public final class MetadataExtractor {
             }
             for (TableCatalog.Column column : table.identityColumns()) {
                 Long restart = column.identity().restartWith();
-                if (restart != null) {
+                if (restart != null && options.setGenerators()) {
                     restarts.add("ALTER TABLE " + options.quote(table.name()) + " ALTER COLUMN "
                             + options.quote(column.name()) + " RESTART WITH " + restart + ";");
                 }
@@ -681,52 +753,20 @@ public final class MetadataExtractor {
         }
     }
 
-    private static void writeDescriptions(Writer out, List<Domain> domains, Map<String, Generator> generators,
-            ExtractionOptions options) throws IOException {
-        boolean header = false;
-        for (Domain domain : domains) {
-            if (domain.description() != null) {
-                header = descriptionsHeader(out, header);
-                out.write(comment("DOMAIN", domain.name(), domain.description(), options));
-            }
-        }
-        for (Map.Entry<String, Generator> generator : generators.entrySet()) {
-            if (generator.getValue().description() != null) {
-                header = descriptionsHeader(out, header);
-                out.write(comment("GENERATOR", generator.getKey(), generator.getValue().description(), options));
-            }
-        }
-    }
-
-    private static boolean descriptionsHeader(Writer out, boolean written) throws IOException {
-        if (!written) {
-            out.write("\n/* Descriptions */\n\n");
-        }
-        return true;
-    }
-
-    private static String comment(String kind, String name, String text, ExtractionOptions options) {
-        return "COMMENT ON " + kind + " " + options.quote(name) + " IS '" + text.replace("'", "''") + "';\n";
-    }
-
-    private List<Domain> readDomains(Selection selection, ExtractionProgress progress) throws SQLException {
+    private List<Domain> readDomains(ExtractionProgress progress) throws SQLException {
         Map<String, String> dimensions = Rdb.dimensions(connection);
         List<Domain> domains = new ArrayList<>();
         try (Statement statement = connection.createStatement(); ResultSet rs = statement.executeQuery(DOMAINS)) {
             while (rs.next()) {
                 progress.checkCancelled();
                 String name = rs.getString("RDB$FIELD_NAME").strip();
-                if (!selection.includesDomain(name)) {
-                    continue;
-                }
                 FieldType type = new FieldType(rs.getInt("RDB$FIELD_TYPE"), rs.getInt("RDB$FIELD_SUB_TYPE"),
                         rs.getInt("RDB$FIELD_LENGTH"), Rdb.nullableInt(rs, "RDB$CHARACTER_LENGTH"),
                         Rdb.nullableInt(rs, "RDB$FIELD_PRECISION"), rs.getInt("RDB$FIELD_SCALE"),
                         Rdb.nullableInt(rs, "RDB$SEGMENT_LENGTH"), Rdb.trimmed(rs.getString("RDB$CHARACTER_SET_NAME")),
                         Rdb.trimmed(rs.getString("RDB$COLLATION_NAME")), dimensions.get(name));
                 domains.add(new Domain(name, type, Rdb.source(rs.getString("RDB$DEFAULT_SOURCE")),
-                        rs.getInt("RDB$NULL_FLAG") == 1, Rdb.source(rs.getString("RDB$VALIDATION_SOURCE")),
-                        Rdb.source(rs.getString("RDB$DESCRIPTION"))));
+                        rs.getInt("RDB$NULL_FLAG") == 1, Rdb.source(rs.getString("RDB$VALIDATION_SOURCE"))));
             }
         }
         return domains;
@@ -738,7 +778,7 @@ public final class MetadataExtractor {
             while (rs.next()) {
                 String name = rs.getString(1).strip();
                 if (selection.includesGenerator(name)) {
-                    generators.put(name, new Generator(Rdb.source(rs.getString(2)), Rdb.nullableLong(rs, "RDB$INITIAL_VALUE"),
+                    generators.put(name, new Generator(Rdb.nullableLong(rs, "RDB$INITIAL_VALUE"),
                             Rdb.nullableLong(rs, "RDB$GENERATOR_INCREMENT")));
                 }
             }
@@ -750,7 +790,7 @@ public final class MetadataExtractor {
      * Um generator. {@code initial} e {@code increment} são os do {@code START WITH} e {@code INCREMENT BY} (o padrão do
      * Firebird 5 é 1 e 1); fora do padrão, ou com a opção, sai como {@code SEQUENCE}.
      */
-    private record Generator(String description, Long initial, Long increment) {
+    private record Generator(Long initial, Long increment) {
 
         String toSql(String quotedName, ExtractionOptions options) {
             boolean start = initial != null && initial != 1;
@@ -772,8 +812,7 @@ public final class MetadataExtractor {
     }
 
     /** Um domínio do usuário; {@code defaultSource} e {@code checkSource} já trazem a palavra-chave ({@code DEFAULT}, {@code CHECK}). */
-    private record Domain(String name, FieldType type, String defaultSource, boolean notNull, String checkSource,
-            String description) {
+    private record Domain(String name, FieldType type, String defaultSource, boolean notNull, String checkSource) {
 
         String toSql(ExtractionOptions options, String defaultCharacterSet) {
             StringBuilder sql = new StringBuilder("CREATE DOMAIN ").append(options.quote(name)).append(" AS ")

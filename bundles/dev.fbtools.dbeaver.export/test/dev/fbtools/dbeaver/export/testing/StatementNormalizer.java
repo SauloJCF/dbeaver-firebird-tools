@@ -67,6 +67,16 @@ public final class StatementNormalizer {
                 }
             }
         }
+        // O IBExpert não escreve USER nem ROLE antes do destinatário de um GRANT; o plugin escreve, que o nome
+        // sozinho é ambíguo. Para comparar, a palavra sai (só como palavra: um nome entre aspas é um token só).
+        // Quem confere que o plugin escolhe a palavra certa são os testes que olham o texto gerado.
+        if (!tokens.isEmpty() && tokens.get(0).equals("GRANT")) {
+            for (int t = tokens.size() - 1; t > 0; t--) {
+                if (tokens.get(t - 1).equals("TO") && (tokens.get(t).equals("USER") || tokens.get(t).equals("ROLE"))) {
+                    tokens.remove(t);
+                }
+            }
+        }
         return String.join(" ", tokens);
     }
 

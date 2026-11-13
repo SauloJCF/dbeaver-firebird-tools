@@ -1,3 +1,9 @@
 # Diferenças aceitas entre a saída do plugin e a Referência do IBExpert (ADR 0008).
 # Formato: TIPO NOME | motivo. Cada entrada vale para o objeto inteiro; remova as que deixarem de ser usadas.
-# Vazio por enquanto: a Referência foi gerada com COMMENT ON, como o plugin escreve.
+# A Referência foi gerada com COMMENT ON, como o plugin escreve; só os privilégios têm diferenças aceitas.
+# Privilégios de sistema que o IBExpert 2.5 lista (tabelas RDB$ para PUBLIC); o plugin só extrai os do usuário.
+GRANT GRANT SELECT ON RDB$FORMATS TO PUBLIC | privilégio de sistema; o plugin extrai só os privilégios do usuário
+GRANT GRANT SELECT ON RDB$PAGES TO PUBLIC | privilégio de sistema; o plugin extrai só os privilégios do usuário
+GRANT GRANT SELECT ON RDB$ROLES TO PUBLIC | privilégio de sistema; o plugin extrai só os privilégios do usuário
+# O IBExpert não extrai a pertinência a uma role (GRANT role TO usuário); o plugin extrai.
+GRANT GRANT VENDEDOR TO SYSDBA | o IBExpert não extrai GRANT de role para usuário

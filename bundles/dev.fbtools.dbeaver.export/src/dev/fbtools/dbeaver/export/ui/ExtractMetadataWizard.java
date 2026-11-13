@@ -6,11 +6,12 @@ import java.util.Map;
 import org.eclipse.jface.wizard.Wizard;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 
-/** Wizard "Extract Metadata": abas Objects e Output. Ao concluir, agenda o job de background e fecha. */
+/** Wizard "Extract Metadata": abas Objects, Options e Output. Ao concluir, agenda o job de background e fecha. */
 final class ExtractMetadataWizard extends Wizard {
 
     private final DBPDataSourceContainer container;
     private final ObjectsPage objects;
+    private final OptionsPage options = new OptionsPage();
     private final OutputPage output;
 
     ExtractMetadataWizard(DBPDataSourceContainer container, Map<String, List<String>> available) {
@@ -24,13 +25,15 @@ final class ExtractMetadataWizard extends Wizard {
     @Override
     public void addPages() {
         addPage(objects);
+        addPage(options);
         addPage(output);
     }
 
     @Override
     public boolean performFinish() {
         output.rememberDirectory();
-        new ExtractMetadataJob(container, objects.selection(), objects.options(), output.path(), output.encoding(),
+        options.remember();
+        new ExtractMetadataJob(container, objects.selection(), options.options(), output.path(), output.encoding(),
                 output.openWhenDone())
                 .schedule();
         return true;

@@ -45,6 +45,7 @@ final class RoutineCatalog {
                    p.RDB$RELATION_NAME AS TYPE_RELATION, p.RDB$FIELD_NAME AS TYPE_COLUMN,
                    f.RDB$FIELD_TYPE, f.RDB$FIELD_SUB_TYPE, f.RDB$FIELD_LENGTH, f.RDB$CHARACTER_LENGTH,
                    f.RDB$FIELD_PRECISION, f.RDB$FIELD_SCALE, f.RDB$SEGMENT_LENGTH,
+                   f.RDB$NULL_FLAG AS DOMAIN_NULL_FLAG, f.RDB$VALIDATION_SOURCE AS DOMAIN_CHECK,
                    cs.RDB$CHARACTER_SET_NAME, co.RDB$COLLATION_NAME
               FROM RDB$PROCEDURE_PARAMETERS p
               JOIN RDB$FIELDS f ON f.RDB$FIELD_NAME = p.RDB$FIELD_SOURCE
@@ -60,6 +61,7 @@ final class RoutineCatalog {
                    a.RDB$RELATION_NAME AS TYPE_RELATION, a.RDB$FIELD_NAME AS TYPE_COLUMN,
                    f.RDB$FIELD_TYPE, f.RDB$FIELD_SUB_TYPE, f.RDB$FIELD_LENGTH, f.RDB$CHARACTER_LENGTH,
                    f.RDB$FIELD_PRECISION, f.RDB$FIELD_SCALE, f.RDB$SEGMENT_LENGTH,
+                   f.RDB$NULL_FLAG AS DOMAIN_NULL_FLAG, f.RDB$VALIDATION_SOURCE AS DOMAIN_CHECK,
                    cs.RDB$CHARACTER_SET_NAME, co.RDB$COLLATION_NAME
               FROM RDB$FUNCTION_ARGUMENTS a
               JOIN RDB$FIELDS f ON f.RDB$FIELD_NAME = a.RDB$FIELD_SOURCE
@@ -107,23 +109,30 @@ final class RoutineCatalog {
     /**
      * Um parâmetro de procedure ou function. {@code domain} é o nome do domínio, se o tipo veio de um; {@code typeOf}
      * é o {@code TYPE OF} (de domínio ou, com {@code typeRelation}, de coluna); {@code type} é o tipo físico, que só
-     * vale quando não há domínio.
+     * vale quando não há domínio. {@code domainNotNull} e {@code domainCheck} são do domínio, e só importam ao
+     * decodificá-lo ({@link ExtractionOptions#decodeDomains()}).
      */
     record Parameter(String name, String domain, boolean typeOf, String typeRelation, String typeColumn,
-            FieldType type, boolean notNull, String defaultSource) {
+            FieldType type, boolean notNull, String defaultSource, boolean domainNotNull, boolean domainCheck) {
+
+        /** O domínio vira o tipo dele, e o {@code CHECK} dele se perde. */
+        boolean decoded(ExtractionOptions options) {
+            return domain != null && !typeOf && typeRelation == null && options.decodeDomains();
+        }
 
         String typeSql(ExtractionOptions options, String defaultCharacterSet) {
             if (typeRelation != null) {
                 return "TYPE OF COLUMN " + options.quote(typeRelation) + "." + options.quote(typeColumn);
             }
-            if (domain != null) {
+            if (domain != null && !decoded(options)) {
                 return (typeOf ? "TYPE OF " : "") + options.quote(domain);
             }
             return type.toSql(defaultCharacterSet, options.alwaysCharacterSet());
         }
 
         String toSql(ExtractionOptions options, String defaultCharacterSet) {
-            return options.quote(name) + " " + typeSql(options, defaultCharacterSet) + (notNull ? " NOT NULL" : "")
+            boolean required = notNull || (decoded(options) && domainNotNull);
+            return options.quote(name) + " " + typeSql(options, defaultCharacterSet) + (required ? " NOT NULL" : "")
                     + (defaultSource == null ? "" : " " + defaultSource);
         }
     }
@@ -175,7 +184,7 @@ final class RoutineCatalog {
             StringBuilder sql = new StringBuilder(keyword).append(' ').append(options.quote(name));
             appendParameters(sql, " (", inputs, options, defaultCharacterSet);
             sql.append("\nRETURNS ").append(returns.typeSql(options, defaultCharacterSet))
-                    .append(returns.notNull() ? " NOT NULL" : "");
+                    .append(returns.notNull() || (returns.decoded(options) && returns.domainNotNull()) ? " NOT NULL" : "");
             if (deterministic) {
                 sql.append("\nDETERMINISTIC");
             }
@@ -349,7 +358,8 @@ final class RoutineCatalog {
                 String name = Rdb.trimmed(rs.getString("NAME"));
                 Parameter parameter = new Parameter(name, anonymous ? null : fieldSource, typeOf,
                         typeOf ? relation : null, typeOf ? column : null, type, rs.getInt("RDB$NULL_FLAG") == 1,
-                        Rdb.source(rs.getString("RDB$DEFAULT_SOURCE")));
+                        Rdb.source(rs.getString("RDB$DEFAULT_SOURCE")), rs.getInt("DOMAIN_NULL_FLAG") == 1,
+                        Rdb.source(rs.getString("DOMAIN_CHECK")) != null);
                 sink.accept(rs.getString("OWNER").strip(), rs.getInt(keyColumn), parameter);
             }
         }

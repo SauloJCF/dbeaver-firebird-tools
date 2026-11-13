@@ -60,10 +60,11 @@ class DomainsAndGeneratorsExtractionTest {
         Path samples = ExportTestDatabase.repositoryRoot().resolve("samples/export-db/golden");
         String reference = Files.readString(samples.resolve("export-db.ibexpert.sql"), StandardCharsets.UTF_8);
         AllowedDiffs allowed = AllowedDiffs.load(samples.resolve("allowed-diffs"));
-        List<ScriptComparator.Difference> differences = ScriptComparator.compare(reference, script, KINDS, allowed).stream()
-                .filter(DomainsAndGeneratorsExtractionTest::inScope).toList();
+        List<ScriptComparator.Difference> differences = ScriptComparator.compare(reference, script, KINDS, allowed);
         assertTrue(differences.isEmpty(), () -> "Divergências da Referência:\n" + differences);
-        assertEquals(Set.of(), allowed.unused(), "allowed-diffs com entradas sem uso");
+        assertEquals(List.of(), allowed.unused().stream()
+                .filter(entry -> entry.startsWith("DOMAIN ") || entry.startsWith("GENERATOR ")).toList(),
+                "allowed-diffs com entradas sem uso");
     }
 
     @Test
@@ -148,12 +149,6 @@ class DomainsAndGeneratorsExtractionTest {
         ExportTestDatabase target = ExportTestDatabase.create("win1252-copy", "WIN1252");
         target.run(text);
         assertEquals(text, extract(target));
-    }
-
-    /** As descrições de tabelas, rotinas etc. ficam para os issues seguintes: só domínios e generators contam aqui. */
-    private static boolean inScope(ScriptComparator.Difference difference) {
-        ObjectKey key = difference.key();
-        return !key.kind().equals("DESCRIPTION") || key.name().startsWith("DOMAIN ") || key.name().startsWith("GENERATOR ");
     }
 
     @Test

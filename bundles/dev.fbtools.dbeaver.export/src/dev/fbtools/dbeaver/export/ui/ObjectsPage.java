@@ -16,10 +16,9 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Tree;
 import org.eclipse.swt.widgets.TreeItem;
 
-import dev.fbtools.dbeaver.export.extract.ExtractionOptions;
 import dev.fbtools.dbeaver.export.extract.Selection;
 
-/** Aba Objects: árvore dos objetos disponíveis à esquerda, lista dos selecionados à direita, e as opções do script. */
+/** Aba Objects: árvore dos objetos disponíveis à esquerda, lista dos selecionados à direita. */
 final class ObjectsPage extends WizardPage {
 
     static final String DOMAINS = "Domains";
@@ -55,14 +54,6 @@ final class ObjectsPage extends WizardPage {
 
     private Tree tree;
     private org.eclipse.swt.widgets.List selected;
-    private Button createDatabase;
-    private Button alwaysCharacterSet;
-    private Button computedBySeparate;
-    private Button alwaysQuote;
-    private Button createOrAlter;
-    private Button noSetTerm;
-    private Button omitHeader;
-    private Button useSequence;
 
     ObjectsPage(Map<String, List<String>> catalog) {
         super("objects");
@@ -93,18 +84,6 @@ final class ObjectsPage extends WizardPage {
         selected = new org.eclipse.swt.widgets.List(root, SWT.MULTI | SWT.BORDER | SWT.V_SCROLL);
         selected.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
-        Composite options = new Composite(root, SWT.NONE);
-        options.setLayout(new GridLayout());
-        options.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
-        createDatabase = check(options, "Incluir CREATE DATABASE (sem usuário nem senha)");
-        alwaysCharacterSet = check(options, "CHARACTER SET / COLLATE em todas as colunas de texto");
-        computedBySeparate = check(options, "COMPUTED BY separado do CREATE TABLE (ALTER TABLE ... ADD)");
-        alwaysQuote = check(options, "Always quote identifiers");
-        createOrAlter = check(options, "CREATE OR ALTER para views, procedures, functions e triggers");
-        noSetTerm = check(options, "Não usar SET TERM (rotinas terminam em END;, nem o isql nem o DBeaver rodam)");
-        omitHeader = check(options, "Sem cabeçalho SET SQL DIALECT / SET NAMES (o DBeaver não os executa)");
-        useSequence = check(options, "SEQUENCE no lugar de GENERATOR (com START WITH e INCREMENT quando preciso)");
-
         Label hint = new Label(root, SWT.NONE);
         hint.setText("Selecione itens na árvore e use Add, ou Extract all para tudo.");
         hint.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
@@ -118,12 +97,6 @@ final class ObjectsPage extends WizardPage {
                 chosen(PROCEDURES), chosen(FUNCTIONS), chosen(PACKAGES), chosen(EXCEPTIONS), chosen(UDFS),
                 chosen(COLLATIONS), chosen(FILTERS), chosen(ROLES), chosen(TRIGGERS), chosen(PUBLICATIONS),
                 chosen(MAPPINGS));
-    }
-
-    ExtractionOptions options() {
-        return new ExtractionOptions(createDatabase.getSelection(), alwaysCharacterSet.getSelection(),
-                computedBySeparate.getSelection(), alwaysQuote.getSelection(), createOrAlter.getSelection(),
-                noSetTerm.getSelection(), omitHeader.getSelection(), useSequence.getSelection());
     }
 
     private Set<String> chosen(String group) {
@@ -199,12 +172,6 @@ final class ObjectsPage extends WizardPage {
         button.setText(text);
         button.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
         button.addListener(SWT.Selection, event -> action.run());
-        return button;
-    }
-
-    private static Button check(Composite parent, String text) {
-        Button button = new Button(parent, SWT.CHECK);
-        button.setText(text);
         return button;
     }
 }

@@ -12,12 +12,53 @@ package dev.fbtools.dbeaver.export.extract;
  * {@code SET SQL DIALECT} e o {@code SET NAMES} do início, que o DBeaver recusa (são comandos do {@code isql}).
  * {@code useSequence}: {@code CREATE SEQUENCE} no lugar de {@code CREATE GENERATOR}; um generator com {@code START WITH}
  * ou {@code INCREMENT} fora do padrão sai como {@code SEQUENCE} de qualquer jeito, que o {@code GENERATOR} não os aceita.
+ * {@code setGenerators}: {@code SET GENERATOR ... TO} com o valor atual de cada generator e o {@code RESTART WITH} das
+ * identities. {@code descriptions}: as descrições, sempre como {@code COMMENT ON}. {@code decodeDomains}: colunas e
+ * parâmetros saem com o tipo do domínio, e não com o nome dele; o {@code CHECK} do domínio não vai junto (o
+ * {@code VALUE} dele só existe no domínio), e a extração avisa. {@code grants}: os privilégios.
+ * {@code grantsOnlySelected}: só os dos objetos da seleção.
  */
 public record ExtractionOptions(boolean createDatabase, boolean alwaysCharacterSet, boolean computedBySeparate,
-        boolean alwaysQuote, boolean createOrAlter, boolean noSetTerm, boolean omitHeader, boolean useSequence) {
+        boolean alwaysQuote, boolean createOrAlter, boolean noSetTerm, boolean omitHeader, boolean useSequence,
+        boolean setGenerators, boolean descriptions, boolean decodeDomains, boolean grants,
+        boolean grantsOnlySelected) {
 
     public static final ExtractionOptions DEFAULT =
         new ExtractionOptions(false, false, false, false, false, false, false, false);
+
+    /**
+     * Os oito primeiros e, dos demais, os padrões: Set generators, descrições e privilégios (só dos selecionados)
+     * ligados, Decode domains desligado. A aba Options parte destes mesmos padrões.
+     */
+    public ExtractionOptions(boolean createDatabase, boolean alwaysCharacterSet, boolean computedBySeparate,
+            boolean alwaysQuote, boolean createOrAlter, boolean noSetTerm, boolean omitHeader, boolean useSequence) {
+        this(createDatabase, alwaysCharacterSet, computedBySeparate, alwaysQuote, createOrAlter, noSetTerm,
+                omitHeader, useSequence, true, true, false, true, true);
+    }
+
+    public ExtractionOptions withSetGenerators(boolean value) {
+        return withLater(value, descriptions, decodeDomains, grants, grantsOnlySelected);
+    }
+
+    public ExtractionOptions withDescriptions(boolean value) {
+        return withLater(setGenerators, value, decodeDomains, grants, grantsOnlySelected);
+    }
+
+    public ExtractionOptions withDecodeDomains(boolean value) {
+        return withLater(setGenerators, descriptions, value, grants, grantsOnlySelected);
+    }
+
+    public ExtractionOptions withGrants(boolean value, boolean onlySelected) {
+        return withLater(setGenerators, descriptions, decodeDomains, value, onlySelected);
+    }
+
+    /** Uma cópia com as cinco últimas opções trocadas. */
+    private ExtractionOptions withLater(boolean setGenerators, boolean descriptions, boolean decodeDomains,
+            boolean grants, boolean grantsOnlySelected) {
+        return new ExtractionOptions(createDatabase, alwaysCharacterSet, computedBySeparate, alwaysQuote,
+                createOrAlter, noSetTerm, omitHeader, useSequence, setGenerators, descriptions, decodeDomains, grants,
+                grantsOnlySelected);
+    }
 
     /** Com {@code GENERATOR}. */
     public ExtractionOptions(boolean createDatabase, boolean alwaysCharacterSet, boolean computedBySeparate,
