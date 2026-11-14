@@ -16,6 +16,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Tree;
 import org.eclipse.swt.widgets.TreeItem;
 
+import dev.fbtools.dbeaver.export.extract.DependencyGraph;
 import dev.fbtools.dbeaver.export.extract.Selection;
 
 /** Aba Objects: árvore dos objetos disponíveis à esquerda, lista dos selecionados à direita. */
@@ -52,11 +53,14 @@ final class ObjectsPage extends WizardPage {
     private final Map<String, List<String>> available = new LinkedHashMap<>();
     private final Map<String, Set<String>> chosen = new LinkedHashMap<>();
 
+    private final DependencyGraph graph;
+
     private Tree tree;
     private org.eclipse.swt.widgets.List selected;
 
-    ObjectsPage(Map<String, List<String>> catalog) {
+    ObjectsPage(Map<String, List<String>> catalog, DependencyGraph graph) {
         super("objects");
+        this.graph = graph;
         setTitle("Objects");
         setDescription("Escolha os objetos a extrair.");
         GROUPS.forEach(group -> {
@@ -78,15 +82,18 @@ final class ObjectsPage extends WizardPage {
         buttons.setLayout(new GridLayout());
         button(buttons, "Add >", this::addSelected);
         button(buttons, "< Remove", this::removeSelected);
+        button(buttons, "Add related objects", this::addRelated).setEnabled(graph != null);
         button(buttons, "Extract all", this::addAll);
         button(buttons, "Clear", this::clear);
 
         selected = new org.eclipse.swt.widgets.List(root, SWT.MULTI | SWT.BORDER | SWT.V_SCROLL);
         selected.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
-        Label hint = new Label(root, SWT.NONE);
-        hint.setText("Selecione itens na árvore e use Add, ou Extract all para tudo.");
-        hint.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
+        Label hint = new Label(root, SWT.WRAP);
+        hint.setText("Selecione itens na árvore e use Add, Add related objects para trazer o que eles precisam, ou Extract all para tudo.");
+        GridData hintData = new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1);
+        hintData.widthHint = 500;
+        hint.setLayoutData(hintData);
         setControl(root);
         refresh();
     }
@@ -147,6 +154,19 @@ final class ObjectsPage extends WizardPage {
                 }
             }
         }
+        refresh();
+    }
+
+    /** Junta à seleção o que ela precisa para rodar num banco vazio: domínios, generators, exceptions, rotinas, tabelas... */
+    private void addRelated() {
+        Selection related = graph.related(selection());
+        Map<String, Set<String>> found = Map.ofEntries(Map.entry(DOMAINS, related.domains()),
+                Map.entry(GENERATORS, related.generators()), Map.entry(EXCEPTIONS, related.exceptions()),
+                Map.entry(COLLATIONS, related.collations()), Map.entry(UDFS, related.udfs()),
+                Map.entry(TABLES, related.tables()), Map.entry(VIEWS, related.views()),
+                Map.entry(PROCEDURES, related.procedures()), Map.entry(FUNCTIONS, related.functions()),
+                Map.entry(PACKAGES, related.packages()), Map.entry(TRIGGERS, related.triggers()));
+        found.forEach((group, names) -> chosen.get(group).addAll(names));
         refresh();
     }
 

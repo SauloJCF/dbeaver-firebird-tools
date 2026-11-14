@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * O Script de dados: um {@code INSERT} por registro das tabelas dadas, na ordem em que elas vêm, lidos em streaming
+ * O Script de dados: um {@code INSERT} por registro das tabelas dadas, em ordem de FK ({@link ForeignKeyOrder}), lidos em streaming
  * (nada de tabela inteira na memória) e gravados direto no arquivo. Cada tabela sai com uma lista explícita de
  * colunas, lida do catálogo (ADR 0007) e sem as {@code COMPUTED BY}, que o servidor não deixa gravar. As
  * Colunas array ficam como estão: a ADR 0010 não foi aceita, e o Jaybird falha ao lê-las.
@@ -91,8 +91,9 @@ public final class DataExtractor {
     }
 
     /** Só os dados, sem cabeçalho; quem divide o script em arquivos escreve o cabeçalho de cada um. */
-    void extractBody(List<String> tables, DataOptions options, Sink sink, ExtractionProgress progress)
+    void extractBody(List<String> requested, DataOptions options, Sink sink, ExtractionProgress progress)
             throws SQLException, IOException {
+        List<String> tables = ForeignKeyOrder.order(requested, ForeignKeyOrder.read(connection), progress);
         DatabaseInfo info = DatabaseInfo.read(connection);
         DatabaseInfo.warnIfConnectionDiffers(connection, info, progress);
         bindNativeTypes();

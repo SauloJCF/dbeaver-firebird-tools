@@ -18,6 +18,7 @@ import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.exec.DBCExecutionContext;
 import org.jkiss.dbeaver.ui.UIUtils;
 
+import dev.fbtools.dbeaver.export.extract.DependencyGraph;
 import dev.fbtools.dbeaver.export.extract.MetadataExtractor;
 
 /**
@@ -34,9 +35,10 @@ public final class ExtractMetadataHandler extends AbstractHandler {
             return null;
         }
         Shell shell = HandlerUtil.getActiveShell(event);
-        Map<String, List<String>> catalog = loadCatalog(shell, container);
+        DependencyGraph[] graph = new DependencyGraph[1];
+        Map<String, List<String>> catalog = loadCatalog(shell, container, graph);
         if (catalog != null) {
-            new WizardDialog(shell, new ExtractMetadataWizard(container, catalog)).open();
+            new WizardDialog(shell, new ExtractMetadataWizard(container, catalog, graph[0])).open();
         }
         return null;
     }
@@ -53,7 +55,8 @@ public final class ExtractMetadataHandler extends AbstractHandler {
     /**
      * @return os nomes dos objetos por grupo da aba Objects, ou {@code null} se falhou (o erro já foi mostrado)
      */
-    private static Map<String, List<String>> loadCatalog(Shell shell, DBPDataSourceContainer container) {
+    private static Map<String, List<String>> loadCatalog(Shell shell, DBPDataSourceContainer container,
+            DependencyGraph[] graph) {
         Map<String, List<String>> catalog = new LinkedHashMap<>();
         try {
             UIUtils.runInProgressDialog(monitor -> {
@@ -78,6 +81,18 @@ public final class ExtractMetadataHandler extends AbstractHandler {
                     catalog.put(ObjectsPage.TRIGGERS, extractor.listTriggers());
                     catalog.put(ObjectsPage.PUBLICATIONS, extractor.listPublications());
                     catalog.put(ObjectsPage.MAPPINGS, extractor.listMappings());
+                    try {
+                        graph[0] = DependencyGraph.read(FirebirdConnections.jdbc(monitor, context),
+                                new DependencyGraph.KnownObjects(catalog.get(ObjectsPage.DOMAINS),
+                                        catalog.get(ObjectsPage.GENERATORS), catalog.get(ObjectsPage.EXCEPTIONS),
+                                        catalog.get(ObjectsPage.UDFS), catalog.get(ObjectsPage.COLLATIONS),
+                                        catalog.get(ObjectsPage.TABLES), catalog.get(ObjectsPage.VIEWS),
+                                        catalog.get(ObjectsPage.PROCEDURES), catalog.get(ObjectsPage.FUNCTIONS),
+                                        catalog.get(ObjectsPage.PACKAGES), catalog.get(ObjectsPage.TRIGGERS)));
+                    } catch (SQLException e) {
+                        // "Add related" é só um auxílio: sem o grafo, ele fica desativado e o resto do wizard funciona.
+                        graph[0] = null;
+                    }
                 } catch (DBException | SQLException e) {
                     throw new InvocationTargetException(e);
                 } finally {

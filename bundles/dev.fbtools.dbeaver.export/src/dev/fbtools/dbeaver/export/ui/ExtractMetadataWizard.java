@@ -6,6 +6,8 @@ import java.util.Map;
 import org.eclipse.jface.wizard.Wizard;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 
+import dev.fbtools.dbeaver.export.extract.DependencyGraph;
+
 /**
  * Wizard "Extract Metadata": abas Objects, Data, Options e Output. Ao concluir, agenda o job de background e fecha. Dá
  * para concluir com só objetos (script de metadata), só tabelas em Data (script de dados) ou os dois.
@@ -18,10 +20,11 @@ final class ExtractMetadataWizard extends Wizard {
     private final OptionsPage options = new OptionsPage();
     private final OutputPage output;
 
-    ExtractMetadataWizard(DBPDataSourceContainer container, Map<String, List<String>> available) {
+    ExtractMetadataWizard(DBPDataSourceContainer container, Map<String, List<String>> available,
+            DependencyGraph graph) {
         this.container = container;
-        this.objects = new ObjectsPage(available);
-        this.data = new DataPage(available.getOrDefault(ObjectsPage.TABLES, List.of()));
+        this.objects = new ObjectsPage(available, graph);
+        this.data = new DataPage(available.getOrDefault(ObjectsPage.TABLES, List.of()), graph);
         this.output = new OutputPage(container.getName());
         setWindowTitle("Extract Metadata - " + container.getName());
         setNeedsProgressMonitor(false);
