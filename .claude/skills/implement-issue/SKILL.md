@@ -70,6 +70,7 @@ Se a implementação exigir contradizer uma ADR, pare e escreva: `Contradiz ADR-
 
 - Rode `.\mvnw verify` na raiz (PowerShell). Mudou a gramática ANTLR, renomes ou estrutura: `.\mvnw clean verify`. Para um relatório isolado do log, delegue ao agent `build-verifier`.
 - Os testes com banco precisam do Firebird 5 local (`fbdebug-test.properties` na raiz). Sem ele, rode `.\mvnw verify -DskipTests` e **diga que os testes não rodaram**.
+- Regras de build (raiz e por inteiro, quando usar `clean`, loopback do Tycho no sandbox e como rodar no terminal do usuário): seção "Build e testes" do `CLAUDE.md`.
 - Se os testes falharem, mostre a saída e não marque nada.
 
 ### 7. Fechar o issue
