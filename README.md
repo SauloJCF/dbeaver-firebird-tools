@@ -7,7 +7,7 @@ Plugins do DBeaver CE 26.2.2 para Firebird 5 (ADR 0006). Vocabulário em `GLOSSA
 | Plugin | Bundle | O que faz | Documentação |
 | ------ | ------ | --------- | ------------ |
 | Depurador PSQL | `dev.fbtools.dbeaver.psqldebug` | Depura Rotinas PSQL (procedures, functions, triggers, packages) contra um banco local | [Instalação e uso](docs/instalacao-psqldebug.md), [Como funciona](docs/como-funciona.md) |
-| Exportação de metadata e dados | `dev.fbtools.dbeaver.export` | Gera scripts de metadata e de dados do banco (ainda não implementado) | Spec em `.scratch/exportacao-metadata-dados/spec.md` |
+| Exportação de metadata e dados | `dev.fbtools.dbeaver.export` | Gera scripts de metadata (DDL em Fases) e de dados (`INSERT`s em ordem de FK) de um banco Firebird 5 | [Instalação](docs/instalacao-export.md), [Uso e opções](docs/exportacao.md), [Regenerar a Referência do IBExpert](docs/regenerar-referencias-ibexpert.md) |
 
 Os plugins saem num zip só (repositório p2, `firebird-tools-<versão>.zip`), com uma feature por plugin. Cada um se instala e desinstala sozinho.
 

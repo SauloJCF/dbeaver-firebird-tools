@@ -43,7 +43,7 @@ Extrair do DBeaver CE, para um arquivo `.sql`, o metadata de um banco Firebird 5
 - Sem ordem que o Firebird aceite (ADR 0011): coluna `COMPUTED BY`, índice de expressão ou `CHECK` que chama Rotina (a Extração avisa que o script só roda num banco onde a Rotina já exista) e ciclo entre corpo e view, isto é, Rotina que lê view que lê a própria Rotina (o script falha nesse ponto, e a Extração avisa).
 - Para `isql` e DBeaver, com `SET TERM`; senha nunca no arquivo.
 - Charset do script conforme ADR 0009; `CREATE DATABASE` sempre com `DEFAULT CHARACTER SET`; aviso se houver colunas `NONE`.
-- Dados: `INSERT`s em ordem de FK, lidos em streaming.
+- Dados: `INSERT`s em ordem de FK, lidos em streaming. Os triggers de tabela disparam nos `INSERT`s se já existirem; a extração não os desativa (ver `docs/exportacao.md`).
 
 ## Fora do escopo
 
