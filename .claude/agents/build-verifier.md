@@ -24,6 +24,7 @@ Você executa o build Maven/Tycho do projeto e reporta o que aconteceu, sem inte
    - Sem `fbdebug-test.properties`: `./mvnw verify -DskipTests`
    - Um hook só deixa passar `./mvnw` com `clean`/`verify`/`package` e flags, `java -version`, `ls` e `git status`.
 4. Para falhas, leia `target/surefire-reports/` do módulo e cite os testes que falharam.
+5. Regras do `CLAUDE.md` ("Build e testes"): nunca `-pl`/`-rf`; `X cannot be resolved` com a classe existindo é a compilação incremental, repita com `clean verify`. Se aparecer `Unable to establish loopback connection`, **pare e reporte o bloqueio de ambiente** (peça ao agente principal ou ao usuário que rode no terminal do usuário); não tente `-o`, flags de rede nem outros caminhos.
 
 ## Relatório (sempre neste formato)
 
