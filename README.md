@@ -9,7 +9,7 @@ Plugins do DBeaver CE 26.2.2 para Firebird 5 (ADR 0006). Vocabulário em `GLOSSA
 | Depurador PSQL | `dev.fbtools.dbeaver.psqldebug` | Depura Rotinas PSQL (procedures, functions, triggers, packages) contra um banco local | [Instalação e uso](docs/instalacao-psqldebug.md), [Como funciona](docs/como-funciona.md) |
 | Exportação de metadata e dados | `dev.fbtools.dbeaver.export` | Gera scripts de metadata e de dados do banco (ainda não implementado) | Spec em `.scratch/exportacao-metadata-dados/spec.md` |
 
-Os plugins saem num zip só (repositório p2, `firebird-tools-<versão>.zip`), com uma feature por plugin. Cada um se instala e desinstala sozinho.
+Os plugins saem num zip (repositório p2, `firebird-tools-<versão>.zip`), com uma feature por plugin. Cada um se instala e desinstala sozinho. Para o DBeaver Enterprise 26.2.0 (plataforma Eclipse 4.40) há um segundo zip, `firebird-tools-ee-<versão>.zip`, com o Depurador PSQL e o `org.eclipse.debug.ui` do próprio EE (ADR 0004).
 
 ## Desenvolvimento
 
@@ -17,7 +17,7 @@ Os plugins saem num zip só (repositório p2, `firebird-tools-<versão>.zip`), c
 
 - DBeaver CE 26.2.2 instalado na pasta padrão (`%LOCALAPPDATA%\DBeaver`). Os bundles dele são a target platform.
 - JDK 21 no `JAVA_HOME` (o Tycho 5 exige Java 21).
-- Acesso a `download.eclipse.org`: o `org.eclipse.debug.ui` vem do repositório do Eclipse 4.41.
+- Acesso a `download.eclipse.org`: o `org.eclipse.debug.ui` vem dos repositórios do Eclipse 4.41 (feature do CE) e 4.40 (feature do Enterprise).
 
 ### Build pela linha de comando
 
@@ -25,7 +25,7 @@ Os plugins saem num zip só (repositório p2, `firebird-tools-<versão>.zip`), c
 .\mvnw verify
 ```
 
-Gera o plugin em `bundles/dev.fbtools.dbeaver.psqldebug/target/` e o repositório p2 instalável em `releng/dev.fbtools.dbeaver.repository/target/firebird-tools-<versão>.zip`.
+Gera o plugin em `bundles/dev.fbtools.dbeaver.psqldebug/target/` e os repositórios p2 instaláveis em `releng/dev.fbtools.dbeaver.repository/target/firebird-tools-<versão>.zip` (DBeaver CE) e `releng/dev.fbtools.dbeaver.repository.ee/target/firebird-tools-ee-<versão>.zip` (DBeaver Enterprise 26.2.0).
 
 O parser PSQL é gerado pelo ANTLR a partir de `bundles/dev.fbtools.dbeaver.psqldebug/antlr4/` em `target/generated-sources/antlr4/` (que o `build.properties` inclui como fonte). O runtime do ANTLR vai embutido no plugin (`lib/`).
 
@@ -40,7 +40,9 @@ O zip que a equipe instala no DBeaver é o repositório p2. Para gerá-lo:
 3. Confira `BUILD SUCCESS` no fim da saída.
 4. O zip fica em `releng\dev.fbtools.dbeaver.repository\target\firebird-tools-0.1.0.<data-hora>.zip`. O sufixo é o *qualifier* do Tycho (`aaaaMMddHHmm`, em UTC), então cada build gera um nome novo.
 
-O zip contém a feature, o plugin `dev.fbtools.dbeaver.psqldebug` (com o runtime do ANTLR embutido) e o `org.eclipse.debug.ui` (ADR 0004). O `clean` garante que não sobra zip de build anterior em `target/`.
+O zip contém as features, o plugin `dev.fbtools.dbeaver.psqldebug` (com o runtime do ANTLR embutido) e o `org.eclipse.debug.ui` 3.22.0 (ADR 0004).
+
+O mesmo build gera também `releng\dev.fbtools.dbeaver.repository.ee\target\firebird-tools-ee-0.1.0.<data-hora>.zip`, para o DBeaver Enterprise 26.2.0. Ele tem o mesmo plugin, com o `org.eclipse.debug.ui` 3.21.0 do EE. São dois zips porque o `debug.ui` e o `debug.core` são singletons: as duas features não cabem num repositório só. O `clean` garante que não sobra zip de build anterior em `target/`.
 
 ### Testes diferenciais
 

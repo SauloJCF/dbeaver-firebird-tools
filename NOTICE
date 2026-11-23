@@ -5,8 +5,8 @@ Licenciado sob a MIT License (ver LICENSE).
 Este projeto inclui ou deriva de trabalhos de terceiros, que seguem sob as
 licenças originais:
 
-- Eclipse Debug UI (org.eclipse.debug.ui), redistribuído sem alterações no
-  repositório p2 de instalação.
+- Eclipse Debug UI (org.eclipse.debug.ui 3.22.0 e 3.21.0), redistribuído sem
+  alterações no repositório p2 de instalação.
   Copyright (c) Eclipse Foundation e contribuidores.
   Eclipse Public License 2.0: https://www.eclipse.org/legal/epl-2.0/
   Fonte: https://github.com/eclipse-platform/eclipse.platform

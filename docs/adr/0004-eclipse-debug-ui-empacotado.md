@@ -1,6 +1,6 @@
 # 0004 — UI de debug padrão do Eclipse, com `org.eclipse.debug.ui` empacotado
 
-Status: aceito — 2026-10-13 · revisado 2026-10-14 (forma de instalação: `dropins` → repositório p2) · revisado 2026-10-19 (DBeaver 26.2.2, `debug.ui` 3.22.0)
+Status: aceito — 2026-10-13 · revisado 2026-10-14 (forma de instalação: `dropins` → repositório p2) · revisado 2026-10-19 (DBeaver 26.2.2, `debug.ui` 3.22.0) · revisado 2026-11-23 (feature para o DBeaver Enterprise 26.2.0)
 
 > Nota: renomeado na ADR 0006. O plugin passou de `dev.fbdebug.dbeaver` para `dev.fbtools.dbeaver.psqldebug` e o zip, de `firebird-psql-debugger-<versão>.zip` para `firebird-tools-<versão>.zip`. A decisão abaixo não muda.
 
@@ -36,3 +36,18 @@ Implementar o modelo de debug do Eclipse (debug target, threads, stack frames, v
 - O plugin não é assinado: na instalação, o p2 pede para confiar no conteúdo não assinado.
 - O DBeaver converte `http://` em `https://` nos repositórios p2. Se um dia o repositório for publicado num servidor interno, esse servidor precisa de HTTPS. Para a distribuição por arquivo isso não importa.
 - Conflito de atalho: F7 (step return) colide com o F7 do resultset do DBeaver (`resultset.grid.togglePreview` no 26.2.2), cujo contexto o editor SQL deixa sempre ativo. Resolvido na issue 18 com um contexto de atalhos do plugin, filho do de debug do Eclipse e ativo só durante a Sessão de debug.
+
+## Revisão de 2026-11-23: DBeaver Enterprise 26.2.0
+
+O DBeaver Enterprise 26.2.0 está na plataforma Eclipse 4.40 (`debug.core` 3.23.300, `jface` 3.39.100) e, ao contrário do CE, já traz o `org.eclipse.debug.ui` (3.21.0.v20260525-0831). Instalada nele, a feature do CE troca esse `debug.ui` pelo 3.22.0, que usa API do Eclipse 4.41. A view Debug falha ao ser criada: `NoSuchMethodError: ImageDescriptor.asDisabledDescriptor()` no `jface`, e depois `NoClassDefFoundError: IResumeOthersHandler` no `debug.core`. A troca de perspectiva do launch dá então um NPE em `LaunchView.perspectiveActivated`.
+
+O 3.22 também **não sai** do EE quando a feature é desinstalada, nem com o "Revert" da Installation History: o p2 recalcula as dependências e fica com a versão mais nova que já tem.
+
+Decisão:
+
+- A feature do CE passa a exigir `org.eclipse.debug.core` 3.24.0 ou maior. Numa plataforma mais antiga, o p2 recusa a instalação em vez de trocar o `debug.ui`.
+- Uma segunda feature, `dev.fbtools.dbeaver.psqldebug.ee.feature`, leva o mesmo plugin com o `debug.ui` 3.21.0.v20260525-0831 (repositório `R-4.40-202606010713`) e exige `debug.core` [3.23.0, 3.24.0). Ela inclui a versão exata do `debug.ui`, e não só a exige: assim o p2 também troca um 3.22 que tenha ficado de uma instalação da feature do CE.
+- A feature do EE sai num segundo zip, `firebird-tools-ee-<versão>.zip` (módulo `releng/dev.fbtools.dbeaver.repository.ee`). Num repositório só, o Tycho não resolve as duas features juntas, porque o `debug.ui` e o `debug.core` são singletons. Os requisitos de `debug.core` fazem o p2 recusar o zip errado.
+- O código do plugin não mudou. Ele foi testado no EE 26.2.0 com o `debug.ui` 3.21: breakpoint, steps e Variables funcionando, sem erro no `.log`.
+
+Consequência: a feature do EE fica fixada no EE 26.2.0 e precisa ser revalidada a cada upgrade dele, como a do CE.
