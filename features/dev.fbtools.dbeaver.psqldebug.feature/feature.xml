@@ -38,6 +38,13 @@
           https://github.com/antlr/antlr4/blob/master/LICENSE.txt
     </license>
 
+    <!-- O debug.ui 3.22 abaixo usa API do debug.core 3.24 (Eclipse 4.41). Numa plataforma mais antiga, como o DBeaver
+         Enterprise 26.2.0 (4.40), o p2 recusa esta feature em vez de trocar o debug.ui e quebrar a view Debug. Para o
+         EE existe a dev.fbtools.dbeaver.psqldebug.ee.feature, no zip firebird-tools-ee (ADR 0004). -->
+    <requires>
+        <import plugin="org.eclipse.debug.core" version="3.24.0" match="greaterOrEqual"/>
+    </requires>
+
     <plugin id="dev.fbtools.dbeaver.psqldebug" version="0.0.0"/>
 
     <!-- Mesma release do Eclipse (4.41) cujo debug.core é o do DBeaver 26.2.2. -->

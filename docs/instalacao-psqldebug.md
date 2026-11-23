@@ -1,18 +1,20 @@
 # Depurador PSQL — instalação e uso
 
-Plugin `dev.fbtools.dbeaver.psqldebug` do DBeaver CE 26.2.2 para depurar Rotinas PSQL do Firebird 5. Como ele funciona por dentro: `como-funciona.md`. Vocabulário em `../GLOSSARY.md`, decisões em `adr/`.
+Plugin `dev.fbtools.dbeaver.psqldebug` do DBeaver CE 26.2.2 (e do DBeaver Enterprise 26.2.0) para depurar Rotinas PSQL do Firebird 5. Como ele funciona por dentro: `como-funciona.md`. Vocabulário em `../GLOSSARY.md`, decisões em `adr/`.
 
 ## Instalação
 
 ### Requisitos
 
-- DBeaver CE **26.2.2**. O plugin traz um `org.eclipse.debug.ui` fixado para a plataforma Eclipse dessa versão (ADR 0004); outra versão do DBeaver pode não carregar.
+- DBeaver CE **26.2.2** ou DBeaver Enterprise **26.2.0**. Cada um tem o seu zip, com o `org.eclipse.debug.ui` fixado para a plataforma Eclipse dele (ADR 0004). Outra versão do DBeaver pode não carregar.
 - Firebird 5 local, com a conexão já criada no DBeaver.
 - Para compilar o zip (ver "Gerar o zip de instalação" no `README.md`): JDK 21 no `JAVA_HOME`.
 
 ### Instalar
 
-1. Obtenha o zip `firebird-tools-<versão>.zip`. Não descompacte.
+1. Obtenha o zip do seu DBeaver e não descompacte:
+   - DBeaver CE: `firebird-tools-<versão>.zip`;
+   - DBeaver Enterprise 26.2.0: `firebird-tools-ee-<versão>.zip`.
 2. No DBeaver: **Help > Install New Software…**
 
    <img src="images/help-menu-dbeaver.png" alt="Menu Help do DBeaver com Install New Software destacado" width="350">
@@ -29,7 +31,9 @@ Plugin `dev.fbtools.dbeaver.psqldebug` do DBeaver CE 26.2.2 para depurar Rotinas
 
    <img src="images/confirming-add.png" alt="Diálogo Add Repository com o zip em Location e o botão Add destacado" width="475">
 
-6. Marque **Firebird PSQL Debugger** e clique em **Next** até a licença. Aceite a licença e clique em **Finish**.
+6. Marque **Firebird PSQL Debugger** e clique em **Next** até a licença. No zip do Enterprise, o nome é **Firebird PSQL Debugger (DBeaver Enterprise 26.2.0)**. Aceite a licença e clique em **Finish**.
+
+   Cada feature exige a plataforma do seu DBeaver. Com o zip errado, o *Install* mostra um erro de requisito do `org.eclipse.debug.core`, e nada é instalado.
 
    <img src="images/selecting-software.png" alt="Lista de software com Firebird PSQL Debugger marcado" width="700">
 
@@ -49,7 +53,13 @@ Depois do reinício aparece o menu **PSQL Debug** na barra de menus. Veja "Utili
 
 ### Desinstalar
 
-**Help > Installation Information**, aba *Installed Software*: selecione **Firebird PSQL Debugger**, clique em **Uninstall…**, confirme e reinicie o DBeaver.
+**Help > Installation Information**, aba *Installed Software*: selecione **Firebird PSQL Debugger** (ou **Firebird PSQL Debugger (DBeaver Enterprise 26.2.0)**), clique em **Uninstall…**, confirme e reinicie o DBeaver.
+
+### DBeaver Enterprise com um zip anterior
+
+Um zip anterior a esta revisão instalava no Enterprise o `org.eclipse.debug.ui` do CE (3.22.0). Com ele, a view Debug quebra: aparece o erro `Cannot invoke "org.eclipse.ui.IWorkbenchPage.getPerspective()"`, e o `.log` mostra `NoSuchMethodError` ou `NoClassDefFoundError` do `debug.ui`. Desinstalar não resolve, porque o 3.22 continua no DBeaver.
+
+Para corrigir, desinstale a feature antiga, reinicie e instale o `firebird-tools-ee-<versão>.zip`. Ele inclui o `debug.ui` 3.21.0 do próprio EE, e o p2 troca o 3.22 por ele.
 
 ### Atenção: `-clean` remove o plugin
 
